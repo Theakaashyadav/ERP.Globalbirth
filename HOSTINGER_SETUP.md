@@ -1,18 +1,13 @@
-# Hostinger Setup
+# Hostinger + MongoDB Atlas Setup
 
-## Local test first
+## Local Test First
 
 1. Copy `.env.example` to `.env`.
-2. Set a long random `CLIENT_API_KEY`.
-3. For Hostinger MySQL testing, set:
-   - `DB_CLIENT=mysql`
-   - `HOSTINGER_DB_HOST`
-   - `HOSTINGER_DB_PORT`
-   - `HOSTINGER_DB_USER`
-   - `HOSTINGER_DB_PASSWORD`
-   - `HOSTINGER_DB_NAME`
-4. Import `database/schema.mysql.sql` into the Hostinger database.
-5. Run:
+2. Create a MongoDB Atlas cluster and database user.
+3. Add your current IP address in Atlas Network Access.
+4. Set `MONGODB_URI` in `.env`.
+5. Set a long random `CLIENT_API_KEY`.
+6. Run:
 
 ```bash
 npm install
@@ -20,13 +15,11 @@ npm run build
 npm start
 ```
 
-6. Check the server:
+7. Check the server:
 
 ```bash
 curl -H "Authorization: Bearer YOUR_CLIENT_API_KEY" http://localhost:3000/api/health
 ```
-
-The web frontend loads `/attendance-config.js` from the Node server, so it uses the same `CLIENT_API_KEY` automatically.
 
 Local URLs:
 
@@ -34,7 +27,43 @@ Local URLs:
 - Employee dashboard: `http://localhost:3000/employee/dashboard`
 - HR dashboard: `http://localhost:3000/hr`
 
-## Android API usage
+## Hostinger Node.js App Settings
+
+Use the GitHub repository deployment:
+
+- Framework preset: `Express`
+- Branch: `main`
+- Root directory: `./`
+- Node version: `20.x`
+- Install command: `npm install`
+- Build command: `npm run build`
+- Start command: `npm start`
+- Entry file: `server.js`
+- Output directory: `dist`
+
+## Hostinger Environment Variables
+
+Add these in Hostinger's Node.js app environment settings:
+
+```env
+MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER_HOST/attendance_system?retryWrites=true&w=majority
+CLIENT_API_KEY=change-this-long-random-key
+ADMIN_API_KEY=
+```
+
+Do not commit a real `.env` file.
+
+## MongoDB Atlas Network Access
+
+For quick testing, Atlas can allow access from anywhere with:
+
+```text
+0.0.0.0/0
+```
+
+For production, restrict access if Hostinger provides stable outbound IPs for your plan.
+
+## Android API Usage
 
 Use the hosted API URL and the same client key:
 
@@ -48,31 +77,8 @@ Content-Type: application/json
 }
 ```
 
-`X-API-Key: YOUR_CLIENT_API_KEY` also works if that is easier in the Android app.
-
-## Hostinger upload
-
-1. Upload the project files.
-2. Do not upload `.env` through public file manager paths.
-3. In Hostinger Node.js app/environment settings, add the same variables from `.env`.
-4. Set the startup command to:
-
-```bash
-npm start
-```
-
-5. Build the frontend before uploading, or run this once in Hostinger terminal if available:
-
-```bash
-npm run build
-```
-
-6. After deploy, verify:
-
-```bash
-curl -H "Authorization: Bearer YOUR_CLIENT_API_KEY" https://your-domain.com/api/health
-```
+`X-API-Key: YOUR_CLIENT_API_KEY` also works.
 
 ## Notes
 
-The browser must receive the client key to call the API, so treat `CLIENT_API_KEY` as a shared client access key, not a private server secret. Use strong employee PINs and keep `ADMIN_API_KEY` separate if you want update/delete actions to require a stronger HR-only key.
+The browser must receive the client key to call the API, so treat `CLIENT_API_KEY` as a shared client access key, not a private server secret. Keep `ADMIN_API_KEY` separate if you want update/delete actions to require a stronger HR-only key.

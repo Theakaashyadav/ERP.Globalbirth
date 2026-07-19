@@ -1,5 +1,12 @@
-const dbClient = (process.env.DB_CLIENT || (process.env.HOSTINGER_DB_HOST ? "mysql" : "postgres")).toLowerCase();
 const clientApiKey = process.env.CLIENT_API_KEY || process.env.API_KEY || "";
+
+if (!process.env.MONGODB_URI && !process.env.MONGO_URI) {
+  console.warn("MONGODB_URI is not set. API requests will fail until MongoDB Atlas is configured.");
+}
+
+if (!clientApiKey) {
+  console.warn("CLIENT_API_KEY is not set. API requests are not protected by a shared client key.");
+}
 
 function getClientConfig() {
   return {
@@ -9,7 +16,6 @@ function getClientConfig() {
 }
 
 module.exports = {
-  dbClient,
   clientApiKey,
   adminApiKey: process.env.ADMIN_API_KEY || "",
   getClientConfig

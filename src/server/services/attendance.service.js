@@ -1,5 +1,7 @@
 const bcrypt = require("bcryptjs");
-const { query, dbClient } = require("../db");
+const Employee = require("../models/Employee");
+const AttendanceRecord = require("../models/AttendanceRecord");
+const { connectDatabase } = require("../db/connection");
 
 function cleanText(value) {
   return String(value || "").trim();
@@ -19,47 +21,57 @@ function toNumberOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function toDateOrNull(value) {
+  const text = cleanText(value);
+  if (!text) return null;
+
+  const date = new Date(text + "T00:00:00.000Z");
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function toDateInputValue(value) {
   if (!value) return "";
   if (value instanceof Date) return value.toISOString().slice(0, 10);
   return String(value).slice(0, 10);
 }
 
-function mapEmployee(row) {
+function mapEmployee(employee) {
   return {
-    employeeId: row.employee_id,
-    fullName: row.full_name,
-    name: row.full_name,
-    phone: row.phone,
-    email: row.email || "",
-    dob: toDateInputValue(row.dob),
-    gender: row.gender || "",
-    address: row.address || "",
-    department: row.department || "",
-    designation: row.designation || "",
-    joiningDate: toDateInputValue(row.joining_date),
-    salary: row.salary || "",
-    shift: row.shift || "",
-    status: row.status || "Inactive",
-    registeredIpAddress: row.registered_ip_address || "",
-    registeredFingerprintId: row.registered_fingerprint_id || ""
+    employeeId: employee.employeeId,
+    fullName: employee.fullName,
+    name: employee.fullName,
+    phone: employee.phone,
+    email: employee.email || "",
+    dob: toDateInputValue(employee.dob),
+    gender: employee.gender || "",
+    address: employee.address || "",
+    department: employee.department || "",
+    designation: employee.designation || "",
+    joiningDate: toDateInputValue(employee.joiningDate),
+    salary: employee.salary || "",
+    shift: employee.shift || "",
+    status: employee.status || "Inactive",
+    registeredIpAddress: employee.registeredIpAddress || "",
+    registeredFingerprintId: employee.registeredFingerprintId || ""
   };
 }
 
 async function getEmployees() {
-  const result = await query(
-    `SELECT *
-     FROM employees
-     ORDER BY created_at DESC`
-  );
+  await connectDatabase();
+
+  const employees = await Employee.find({})
+    .sort({ createdAt: -1 })
+    .lean();
 
   return {
     success: true,
-    data: result.rows.map(row => mapEmployee(row))
+    data: employees.map(mapEmployee)
   };
 }
 
 async function addEmployee(payload) {
+  await connectDatabase();
+
   const employeeId = cleanText(payload.employeeId) || "EMP" + Date.now().toString().slice(-6);
   const fullName = cleanText(payload.fullName);
   const phone = cleanText(payload.phone);
@@ -74,33 +86,35 @@ async function addEmployee(payload) {
 
   const pinHash = await bcrypt.hash(pin, 10);
 
-  await query(
-    `INSERT INTO employees (
-      employee_id, full_name, phone, pin_hash, email, dob, gender, address,
-      department, designation, joining_date, salary, shift, status,
-      registered_ip_address, registered_fingerprint_id
-    ) VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16
-    )`,
-    [
+  try {
+    await Employee.create({
       employeeId,
       fullName,
       phone,
       pinHash,
-      toNullable(payload.email),
-      toNullable(payload.dob),
-      toNullable(payload.gender),
-      toNullable(payload.address),
-      toNullable(payload.department),
-      toNullable(payload.designation),
-      toNullable(payload.joiningDate),
-      toNumberOrNull(payload.salary),
-      toNullable(payload.shift),
-      cleanText(payload.status) || "Inactive",
-      toNullable(payload.registeredIpAddress),
-      toNullable(payload.registeredFingerprintId)
-    ]
-  );
+      email: cleanText(payload.email),
+      dob: toDateOrNull(payload.dob),
+      gender: cleanText(payload.gender),
+      address: cleanText(payload.address),
+      department: cleanText(payload.department),
+      designation: cleanText(payload.designation),
+      joiningDate: toDateOrNull(payload.joiningDate),
+      salary: toNumberOrNull(payload.salary),
+      shift: cleanText(payload.shift),
+      status: cleanText(payload.status) || "Inactive",
+      registeredIpAddress: cleanText(payload.registeredIpAddress),
+      registeredFingerprintId: cleanText(payload.registeredFingerprintId)
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return {
+        success: false,
+        message: "Employee ID or phone number already exists."
+      };
+    }
+
+    throw error;
+  }
 
   return {
     success: true,
@@ -109,26 +123,20 @@ async function addEmployee(payload) {
 }
 
 async function loginEmployee(payload) {
+  await connectDatabase();
+
   const phone = cleanText(payload.phone);
   const pin = cleanText(payload.pin);
+  const employee = await Employee.findOne({ phone }).lean();
 
-  const result = await query(
-    `SELECT *
-     FROM employees
-     WHERE phone = $1
-     LIMIT 1`,
-    [phone]
-  );
-
-  if (!result.rows.length) {
+  if (!employee) {
     return {
       success: false,
       message: "Employee not found."
     };
   }
 
-  const row = result.rows[0];
-  const ok = await bcrypt.compare(pin, row.pin_hash);
+  const ok = await bcrypt.compare(pin, employee.pinHash);
 
   if (!ok) {
     return {
@@ -139,11 +147,13 @@ async function loginEmployee(payload) {
 
   return {
     success: true,
-    employee: mapEmployee(row)
+    employee: mapEmployee(employee)
   };
 }
 
 async function updateEmployee(payload) {
+  await connectDatabase();
+
   const employeeId = cleanText(payload.employeeId);
 
   if (!employeeId) {
@@ -153,118 +163,97 @@ async function updateEmployee(payload) {
     };
   }
 
-  const result = await query(
-    `UPDATE employees
-     SET full_name = $2,
-         phone = $3,
-         email = $4,
-         department = $5,
-         designation = $6,
-         joining_date = $7,
-         salary = $8,
-         shift = $9,
-         status = $10,
-         address = $11,
-         updated_at = NOW()
-     WHERE employee_id = $1`,
-    [
-      employeeId,
-      cleanText(payload.fullName),
-      cleanText(payload.phone),
-      toNullable(payload.email),
-      toNullable(payload.department),
-      toNullable(payload.designation),
-      toNullable(payload.joiningDate),
-      toNumberOrNull(payload.salary),
-      toNullable(payload.shift),
-      cleanText(payload.status) || "Inactive",
-      toNullable(payload.address)
-    ]
+  const result = await Employee.updateOne(
+    { employeeId },
+    {
+      $set: {
+        fullName: cleanText(payload.fullName),
+        phone: cleanText(payload.phone),
+        email: cleanText(payload.email),
+        department: cleanText(payload.department),
+        designation: cleanText(payload.designation),
+        joiningDate: toDateOrNull(payload.joiningDate),
+        salary: toNumberOrNull(payload.salary),
+        shift: cleanText(payload.shift),
+        status: cleanText(payload.status) || "Inactive",
+        address: cleanText(payload.address)
+      }
+    }
   );
 
   return {
-    success: result.rowCount > 0,
-    message: result.rowCount > 0 ? "Employee updated." : "Employee not found."
+    success: result.matchedCount > 0,
+    message: result.matchedCount > 0 ? "Employee updated." : "Employee not found."
   };
 }
 
 async function deleteEmployee(payload) {
-  const employeeId = cleanText(payload.employeeId);
+  await connectDatabase();
 
-  const result = await query(
-    `DELETE FROM employees
-     WHERE employee_id = $1`,
-    [employeeId]
-  );
+  const employeeId = cleanText(payload.employeeId);
+  const result = await Employee.deleteOne({ employeeId });
+
+  if (result.deletedCount > 0) {
+    await AttendanceRecord.deleteMany({ employeeId });
+  }
 
   return {
-    success: result.rowCount > 0,
-    message: result.rowCount > 0 ? "Employee deleted." : "Employee not found."
+    success: result.deletedCount > 0,
+    message: result.deletedCount > 0 ? "Employee deleted." : "Employee not found."
   };
 }
 
 async function getEmployeeProfile(payload) {
-  const employeeId = cleanText(payload.employeeId);
+  await connectDatabase();
 
-  const result = await query(
-    `SELECT *
-     FROM employees
-     WHERE employee_id = $1
-     LIMIT 1`,
-    [employeeId]
-  );
+  const employeeId = cleanText(payload.employeeId);
+  const employee = await Employee.findOne({ employeeId }).lean();
 
   return {
-    success: result.rows.length > 0,
-    data: result.rows.length ? mapEmployee(result.rows[0]) : null,
-    message: result.rows.length ? "" : "Employee not found."
+    success: Boolean(employee),
+    data: employee ? mapEmployee(employee) : null,
+    message: employee ? "" : "Employee not found."
   };
 }
 
 async function saveAttendance(payload) {
+  await connectDatabase();
+
   const records = Array.isArray(payload.records) ? payload.records : [];
 
   for (const record of records) {
     const employeeId = cleanText(record.employeeId);
-    const date = cleanText(record.date);
+    const date = toDateOrNull(record.date);
     const time = cleanText(record.time);
 
     if (!employeeId || !date || !time) {
       continue;
     }
 
-    const sql = dbClient === "mysql"
-      ? `INSERT INTO attendance_records (
-          employee_id, attendance_date, attendance_time, gps_verified,
-          gps_latitude, gps_longitude, gps_accuracy, office_distance_meter,
-          allowed_radius_meter, office_verified, attendance_source
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
-        )
-        ON DUPLICATE KEY UPDATE employee_id = employee_id`
-      : `INSERT INTO attendance_records (
-          employee_id, attendance_date, attendance_time, gps_verified,
-          gps_latitude, gps_longitude, gps_accuracy, office_distance_meter,
-          allowed_radius_meter, office_verified, attendance_source
-        ) VALUES (
-          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
-        )
-        ON CONFLICT (employee_id, attendance_date)
-        DO NOTHING`;
-
-    await query(sql, [
-      employeeId,
-      date,
-      time,
-      toBoolean(record.gpsVerified),
-      toNumberOrNull(record.gpsLatitude),
-      toNumberOrNull(record.gpsLongitude),
-      toNumberOrNull(record.gpsAccuracy),
-      toNumberOrNull(record.officeDistanceMeter),
-      toNumberOrNull(record.allowedRadiusMeter),
-      toBoolean(record.officeVerified),
-      cleanText(record.attendanceSource) || "web-gps"
-    ]);
+    await AttendanceRecord.updateOne(
+      {
+        employeeId,
+        attendanceDate: date
+      },
+      {
+        $setOnInsert: {
+          employeeId,
+          attendanceDate: date,
+          attendanceTime: time,
+          gpsVerified: toBoolean(record.gpsVerified),
+          gpsLatitude: toNumberOrNull(record.gpsLatitude),
+          gpsLongitude: toNumberOrNull(record.gpsLongitude),
+          gpsAccuracy: toNumberOrNull(record.gpsAccuracy),
+          officeDistanceMeter: toNumberOrNull(record.officeDistanceMeter),
+          allowedRadiusMeter: toNumberOrNull(record.allowedRadiusMeter),
+          officeVerified: toBoolean(record.officeVerified),
+          attendanceSource: cleanText(record.attendanceSource) || "web-gps"
+        }
+      },
+      {
+        upsert: true
+      }
+    );
   }
 
   return {
@@ -273,36 +262,37 @@ async function saveAttendance(payload) {
 }
 
 async function getAttendance() {
-  const result = await query(
-    `SELECT
-       e.employee_id,
-       e.full_name,
-       e.department,
-       e.designation,
-       a.attendance_date,
-       a.attendance_time
-     FROM attendance_records a
-     JOIN employees e ON e.employee_id = a.employee_id
-     ORDER BY e.employee_id, a.attendance_date`
+  await connectDatabase();
+
+  const [employees, attendanceRecords] = await Promise.all([
+    Employee.find({}).lean(),
+    AttendanceRecord.find({}).sort({ employeeId: 1, attendanceDate: 1 }).lean()
+  ]);
+
+  const employeesById = new Map(
+    employees.map(employee => [employee.employeeId, employee])
   );
 
   const map = new Map();
 
-  result.rows.forEach(row => {
-    const employeeId = row.employee_id;
-    const dateKey = toDateInputValue(row.attendance_date);
+  attendanceRecords.forEach(record => {
+    const employee = employeesById.get(record.employeeId);
+    if (!employee) return;
+
+    const employeeId = employee.employeeId;
+    const dateKey = toDateInputValue(record.attendanceDate);
 
     if (!map.has(employeeId)) {
       map.set(employeeId, {
         employeeId,
-        name: row.full_name,
-        fullName: row.full_name,
-        department: row.department || "",
-        designation: row.designation || ""
+        name: employee.fullName,
+        fullName: employee.fullName,
+        department: employee.department || "",
+        designation: employee.designation || ""
       });
     }
 
-    map.get(employeeId)[dateKey] = row.attendance_time + " (Present)";
+    map.get(employeeId)[dateKey] = record.attendanceTime + " (Present)";
   });
 
   return {

@@ -1,19 +1,22 @@
-const { query, dbClient } = require("../db");
+const mongoose = require("mongoose");
+const { connectDatabase } = require("../db/connection");
 const { clientApiKey } = require("../config");
 
 async function healthCheck(req, res) {
   try {
-    await query("SELECT 1 AS ok");
+    await connectDatabase();
 
     res.json({
       success: true,
-      database: dbClient,
+      database: "mongodb",
+      readyState: mongoose.connection.readyState,
       apiKeyRequired: Boolean(clientApiKey)
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      database: dbClient,
+      database: "mongodb",
+      readyState: mongoose.connection.readyState,
       apiKeyRequired: Boolean(clientApiKey),
       message: error.message || "Database connection failed."
     });
