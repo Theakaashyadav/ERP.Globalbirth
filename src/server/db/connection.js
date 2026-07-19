@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 let connectionPromise = null;
 
 function getMongoUri() {
-  return process.env.MONGODB_URI || process.env.MONGO_URI || "";
+  return process.env.MONGODB_URI || "";
 }
 
 async function connectDatabase() {

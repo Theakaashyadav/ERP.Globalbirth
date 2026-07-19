@@ -1,6 +1,6 @@
 const clientApiKey = process.env.CLIENT_API_KEY || process.env.API_KEY || "";
 
-if (!process.env.MONGODB_URI && !process.env.MONGO_URI) {
+if (!process.env.MONGODB_URI) {
   console.warn("MONGODB_URI is not set. API requests will fail until MongoDB Atlas is configured.");
 }
 
