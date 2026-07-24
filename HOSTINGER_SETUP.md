@@ -23,9 +23,13 @@ curl -H "Authorization: Bearer YOUR_CLIENT_API_KEY" http://localhost:3000/api/he
 
 Local URLs:
 
-- Employee login: `http://localhost:3000/`
+- ERP home page: `http://localhost:3000/`
+- Employee web login: `http://localhost:3000/employee/login`
 - Employee dashboard: `http://localhost:3000/employee/dashboard`
 - HR dashboard: `http://localhost:3000/hr`
+- Marketing dashboard: `http://localhost:3000/marketing`
+- Admin dashboard: `http://localhost:3000/admin`
+- Android APK: `http://localhost:3000/downloads/GlobalOne-Employee.apk`
 
 ## Hostinger Node.js App Settings
 
@@ -49,9 +53,13 @@ Add these in Hostinger's Node.js app environment settings:
 MONGODB_URI=mongodb+srv://USER:PASSWORD@CLUSTER_HOST/attendance_system?retryWrites=true&w=majority
 CLIENT_API_KEY=change-this-long-random-key
 ADMIN_API_KEY=
+DASHBOARD_SESSION_SECRET=change-this-independent-long-random-secret
+FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
 ```
 
 Do not commit a real `.env` file.
+
+Paste the Firebase service-account file contents into `FIREBASE_SERVICE_ACCOUNT_JSON` as one JSON value in Hostinger. Do not upload the private JSON file to GitHub.
 
 ## MongoDB Atlas Network Access
 

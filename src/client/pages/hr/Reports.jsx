@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import ExcelJS from "exceljs";
-import { BarChart3, CalendarDays, Download } from "lucide-react";
+import { BarChart3, CalendarDays, CheckCircle2, Clock3, Download, Save, Search, Users, UserX, Palmtree } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 import { AttendanceApi } from "../../api";
 import { formatDateISO, getDateRange, getTodayISODate, normalize } from "../../utils";
@@ -31,6 +31,12 @@ function formatAttendanceTime(value) {
   return text || "-";
 }
 
+function formatReportDate(value) {
+  const date = new Date(value + "T00:00:00");
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" });
+}
+
 function summarize(days) {
   return days.reduce((summary, day) => {
     if (day.status === "Present") summary.present += 1;
@@ -49,6 +55,8 @@ export default function Reports() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [error, setError] = useState("");
+  const [attendanceEdits, setAttendanceEdits] = useState({});
+  const [savingCell, setSavingCell] = useState("");
   const toast = useToast();
 
   useEffect(() => {
@@ -103,8 +111,15 @@ export default function Reports() {
       .map(emp => {
         const days = dateRange.map(date => {
           const rawValue = String(emp.attendanceRow?.[date] || "").trim();
-          const status = getStatusFromValue(rawValue);
-          return { date, rawValue, status, display: status === "Absent" ? "-" : formatAttendanceTime(rawValue) };
+          const savedStatus = String(emp.attendanceRow?.statuses?.[date] || "").trim();
+          const status = ["Present", "Late", "Absent", "Leave"].includes(savedStatus) ? savedStatus : getStatusFromValue(rawValue);
+          return {
+            date,
+            rawValue,
+            status,
+            display: status === "Absent" ? "-" : formatAttendanceTime(rawValue),
+            remark: String(emp.attendanceRow?.remarks?.[date] || "")
+          };
         });
 
         return { ...emp, days, summary: summarize(days) };
@@ -122,7 +137,8 @@ export default function Reports() {
     const today = getTodayISODate();
     const rows = employees.map(emp => {
       const row = attendance.find(item => String(item.employeeId) === String(emp.employeeId));
-      return getStatusFromValue(row?.[today]);
+      const savedStatus = String(row?.statuses?.[today] || "");
+      return ["Present", "Late", "Absent", "Leave"].includes(savedStatus) ? savedStatus : getStatusFromValue(row?.[today]);
     });
 
     return {
@@ -138,6 +154,32 @@ export default function Reports() {
     const today = new Date();
     setFromDate(formatDateISO(new Date(today.getFullYear(), today.getMonth(), 1)));
     setToDate(formatDateISO(new Date(today.getFullYear(), today.getMonth() + 1, 0)));
+  }
+
+  function updateAttendanceEdit(key, field, value, day) {
+    setAttendanceEdits(current => ({
+      ...current,
+      [key]: { status: day.status || "Absent", remark: day.remark || "", ...(current[key] || {}), [field]: value }
+    }));
+  }
+
+  async function saveAttendanceDay(employee, day, key) {
+    const edit = attendanceEdits[key] || { status: day.status || "Absent", remark: day.remark || "" };
+    setSavingCell(key);
+    try {
+      const result = await AttendanceApi.updateAttendanceRemark(employee.employeeId, day.date, edit.status, edit.remark.trim());
+      if (!result.success) {
+        toast.error(result.message || "Attendance was not updated.");
+        return;
+      }
+      toast.success(`${employee.name}'s attendance updated for ${day.date}.`);
+      setAttendanceEdits(current => { const next = { ...current }; delete next[key]; return next; });
+      await loadData();
+    } catch (err) {
+      toast.error(err.message || "Attendance was not updated.");
+    } finally {
+      setSavingCell("");
+    }
   }
 
   async function downloadExcel() {
@@ -199,50 +241,62 @@ export default function Reports() {
         <PageHeader icon={BarChart3} title="Attendance Reports" subtitle="Admin can view GPS-marked employee attendance date-wise." tone="cyan" />
         {error && <div className="alert">{error}</div>}
 
-        <section className="grid" style={{ marginBottom: 22 }}>
-          <Stat label="Total Employees" value={todayStats.total} />
-          <Stat label="Total Present" value={todayStats.present} status="present" />
-          <Stat label="Total Late" value={todayStats.late} status="late" />
-          <Stat label="Total Absent" value={todayStats.absent} status="absent" />
-          <Stat label="Total Leave" value={todayStats.leave} status="leave" />
+        <section className="attendanceStats">
+          <Stat icon={Users} label="Total Employees" value={todayStats.total} tone="blue" />
+          <Stat icon={CheckCircle2} label="Present Today" value={todayStats.present} tone="green" />
+          <Stat icon={Clock3} label="Late Today" value={todayStats.late} tone="amber" />
+          <Stat icon={UserX} label="Absent Today" value={todayStats.absent} tone="red" />
+          <Stat icon={Palmtree} label="On Leave" value={todayStats.leave} tone="purple" />
         </section>
 
-        <section className="panel">
-          <div className="toolbar">
+        <section className="panel attendancePanel">
+          <div className="reportIntro">
+            <div><span className="eyebrow">REPORT CONTROLS</span><h2>Attendance overview</h2><p>Filter employees and dates, review daily status, and update HR classification.</p></div>
+            <button className="btn green" onClick={downloadExcel}><Download size={18} /> Export Excel</button>
+          </div>
+          <div className="toolbar attendanceToolbar">
             <div className="field"><label>From Date</label><input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} /></div>
             <div className="field"><label>To Date</label><input type="date" value={toDate} onChange={e => setToDate(e.target.value)} /></div>
-            <div className="field"><label>Search Employee</label><input value={search} onChange={e => setSearch(e.target.value)} /></div>
+            <div className="field searchField"><label>Search Employee</label><div><Search size={17} /><input placeholder="Name or employee ID" value={search} onChange={e => setSearch(e.target.value)} /></div></div>
             <div className="field"><label>Status Filter</label><select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}><option value="">All Status</option><option>Present</option><option>Late</option><option>Absent</option><option>Leave</option><option>Pending Leave</option><option>Rejected Leave</option><option>Week Off</option></select></div>
             <button className="btn cyan" onClick={() => { setFromDate(getTodayISODate()); setToDate(getTodayISODate()); }}><CalendarDays size={18} /> Today</button>
             <button className="btn cyan" onClick={setThisMonth}>This Month</button>
-            <button className="btn green" onClick={downloadExcel}><Download size={18} /> Excel</button>
           </div>
 
-          <p className="muted">Showing {dateRange.length} days. Employees in table: {report.length}. Top cards show today&apos;s status.</p>
+          <div className="reportContext"><b>{report.length}</b> employees <span /> <b>{dateRange.length}</b> selected days <span /> Summary cards represent today</div>
 
-          <div className="tableWrap">
-            <table>
+          <div className="tableWrap attendanceTableWrap">
+            <table className={"attendanceTable " + (dateRange.length === 1 ? "singleDayTable" : "multiDayTable")}>
               <thead>
                 <tr>
                   <th>Employee</th>
-                  {dateRange.map(date => <th key={date}>{date}</th>)}
+                  {dateRange.map(date => <th key={date}><span className="dateHeading">{formatReportDate(date)}</span></th>)}
                 </tr>
               </thead>
               <tbody>
                 {report.length === 0 && <tr><td colSpan={dateRange.length + 1} style={{ textAlign: "center", padding: 30 }}>No attendance records found</td></tr>}
                 {report.map(emp => (
                   <tr key={emp.employeeId}>
-                    <td>
-                      <strong>{emp.name}</strong>
-                      <div className="muted">{emp.employeeId}</div>
-                      <div className="muted">{emp.department} / {emp.designation}</div>
-                      <div style={{ marginTop: 8 }}>
-                        P: {emp.summary.present} | Late: {emp.summary.late} | A: {emp.summary.absent} | L: {emp.summary.leave}
+                    <td className="employeeColumn">
+                      <div className="employeeIdentity"><div className="employeeAvatar">{emp.name.charAt(0).toUpperCase()}</div><div><strong>{emp.name}</strong><small>{emp.employeeId}</small><small>{emp.department} · {emp.designation}</small></div></div>
+                      <div className="employeeSummary">
+                        <span className="present">P {emp.summary.present}</span><span className="late">L {emp.summary.late}</span><span className="absent">A {emp.summary.absent}</span><span className="leave">LV {emp.summary.leave}</span>
                       </div>
                     </td>
                     {dateRange.map(date => {
                       const day = emp.days.find(item => item.date === date);
-                      return <td key={date}><span className={"status " + normalize(day?.status)}>{day ? `${day.display} ${day.status}` : "-"}</span></td>;
+                      const safeDay = day || { date, status: "Absent", remark: "", display: "-" };
+                      const cellKey = emp.employeeId + "_" + date;
+                      const edit = attendanceEdits[cellKey] || { status: safeDay.status, remark: safeDay.remark };
+                      return (
+                        <td key={date} className={"attendanceDayCell day-" + normalize(edit.status)}>
+                          <div className="attendanceCellContent">
+                            <div className="attendanceStatusBlock"><label>Status<select className={"dayStatusSelect " + normalize(edit.status)} value={edit.status} onChange={event => updateAttendanceEdit(cellKey, "status", event.target.value, safeDay)}><option>Present</option><option>Late</option><option>Absent</option><option>Leave</option></select></label><div><span>Clock-in</span><b className="attendanceTime">{safeDay.display || "-"}</b></div></div>
+                            <label className="dayRemarkField">HR Remark<input maxLength="250" placeholder="Optional daily remark" value={edit.remark} onChange={event => updateAttendanceEdit(cellKey, "remark", event.target.value, safeDay)} /></label>
+                            <button className="remarkButton" disabled={savingCell === cellKey} onClick={() => saveAttendanceDay(emp, safeDay, cellKey)}><Save size={14} /> {savingCell === cellKey ? "Saving..." : "Save"}</button>
+                          </div>
+                        </td>
+                      );
                     })}
                   </tr>
                 ))}
@@ -255,11 +309,11 @@ export default function Reports() {
   );
 }
 
-function Stat({ label, value, status = "active" }) {
+function Stat({ icon: Icon, label, value, tone }) {
   return (
-    <div className="panel">
-      <h2 style={{ margin: 0 }}>{value}</h2>
-      <p className={"status " + status}>{label}</p>
+    <div className={"attendanceStat " + tone}>
+      <div className="attendanceStatIcon"><Icon size={22} /></div>
+      <div><strong>{value}</strong><span>{label}</span></div>
     </div>
   );
 }

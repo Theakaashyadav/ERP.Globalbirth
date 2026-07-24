@@ -52,6 +52,11 @@ const employeeSchema = new mongoose.Schema(
       default: "",
       trim: true
     },
+    teamLeadId: {
+      type: String,
+      default: "",
+      trim: true
+    },
     joiningDate: {
       type: Date,
       default: null
@@ -70,12 +75,12 @@ const employeeSchema = new mongoose.Schema(
       default: "Inactive",
       trim: true
     },
-    registeredIpAddress: {
+    registeredAndroidId: {
       type: String,
       default: "",
       trim: true
     },
-    registeredFingerprintId: {
+    pushToken: {
       type: String,
       default: "",
       trim: true
@@ -85,8 +90,5 @@ const employeeSchema = new mongoose.Schema(
     timestamps: true
   }
 );
-
-employeeSchema.index({ employeeId: 1 }, { unique: true });
-employeeSchema.index({ phone: 1 }, { unique: true });
 
 module.exports = mongoose.models.Employee || mongoose.model("Employee", employeeSchema);

@@ -13,6 +13,7 @@ const blankEmployee = {
   email: "",
   department: "Sales",
   designation: "",
+  teamLeadId: "",
   joiningDate: "",
   salary: "",
   shift: "Morning Shift",
@@ -45,6 +46,7 @@ export default function Employees() {
       return haystack.includes(normalize(search));
     });
   }, [employees, search]);
+  const salesTeamLeads = employees.filter(emp => emp.department === "Sales" && emp.designation === "TL" && normalize(emp.status) === "active" && emp.employeeId !== editing?.employeeId);
 
   async function saveEdit(event) {
     event.preventDefault();
@@ -154,8 +156,9 @@ export default function Employees() {
               <div className="field"><label>Full Name</label><input value={editing.fullName} onChange={e => updateEditing("fullName", e.target.value)} /></div>
               <div className="field"><label>Phone Number</label><input value={editing.phone} onChange={e => updateEditing("phone", e.target.value)} /></div>
               <div className="field"><label>Email</label><input value={editing.email} onChange={e => updateEditing("email", e.target.value)} /></div>
-              <div className="field"><label>Department</label><select value={editing.department} onChange={e => updateEditing("department", e.target.value)}><option>Sales</option><option>Marketing</option><option>HR</option><option>Accounts</option><option>Admin</option><option>IT</option><option>Operations</option></select></div>
-              <div className="field"><label>Designation</label><input value={editing.designation} onChange={e => updateEditing("designation", e.target.value)} /></div>
+              <div className="field"><label>Department</label><select value={editing.department} onChange={e => setEditing(current => ({ ...current, department: e.target.value, designation: e.target.value === "Sales" ? current.designation : "", teamLeadId: "" }))}><option value="">Select Department</option><option>Sales</option><option>HR</option><option>Backend</option></select></div>
+              {editing.department === "Sales" && <div className="field"><label>Designation</label><select value={editing.designation} onChange={e => setEditing(current => ({ ...current, designation: e.target.value, teamLeadId: e.target.value === "Executive" ? current.teamLeadId : "" }))}><option value="">Select Designation</option><option>TL</option><option>Executive</option></select></div>}
+              {editing.department === "Sales" && editing.designation === "Executive" && <div className="field"><label>Reports To TL</label><select required value={editing.teamLeadId || ""} onChange={e => updateEditing("teamLeadId", e.target.value)}><option value="">Select Team Lead</option>{salesTeamLeads.map(tl => <option key={tl.employeeId} value={tl.employeeId}>{tl.fullName} ({tl.employeeId})</option>)}</select></div>}
               <div className="field"><label>Joining Date</label><input type="date" value={editing.joiningDate} onChange={e => updateEditing("joiningDate", e.target.value)} /></div>
               <div className="field"><label>Salary</label><input type="number" value={editing.salary} onChange={e => updateEditing("salary", e.target.value)} /></div>
               <div className="field"><label>Work Shift</label><select value={editing.shift} onChange={e => updateEditing("shift", e.target.value)}><option>Morning Shift</option><option>Evening Shift</option><option>Night Shift</option><option>Flexible Shift</option></select></div>

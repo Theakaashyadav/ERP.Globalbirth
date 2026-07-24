@@ -65,8 +65,8 @@ export default function EmployeeRegister() {
       return;
     }
 
-    if (!/^[0-9]{6}$/.test(form.pin)) {
-      toast.warning("Please enter a valid 6 digit PIN.");
+    if (!/^[0-9]{4}$/.test(form.pin)) {
+      toast.warning("Please enter a valid 4 digit PIN.");
       return;
     }
 
@@ -108,7 +108,7 @@ export default function EmployeeRegister() {
           <form onSubmit={submit} className="formGrid">
             <div className="field"><label>Full Name</label><input value={form.fullName} onChange={e => update("fullName", e.target.value)} /></div>
             <div className="field"><label>Phone Number</label><input value={form.phone} onChange={e => update("phone", onlyDigits(e.target.value, 10))} /></div>
-            <div className="field"><label>Create 6 Digit PIN</label><input type="password" value={form.pin} onChange={e => update("pin", onlyDigits(e.target.value, 6))} /></div>
+            <div className="field"><label>Create 4 Digit PIN</label><input type="password" value={form.pin} onChange={e => update("pin", onlyDigits(e.target.value, 4))} /></div>
             <div className="field"><label>Email</label><input type="email" value={form.email} onChange={e => update("email", e.target.value)} /></div>
             <div className="field"><label>Date of Birth</label><input type="date" value={form.dob} onChange={e => update("dob", e.target.value)} /></div>
             <div className="field"><label>Gender</label><select value={form.gender} onChange={e => update("gender", e.target.value)}><option value="">Select Gender</option><option>Male</option><option>Female</option><option>Other</option></select></div>

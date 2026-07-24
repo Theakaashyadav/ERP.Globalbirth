@@ -1,0 +1,113 @@
+package com.akash.globaloneapp
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.provider.CallLog
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
+import org.json.JSONObject
+import java.time.LocalDate
+import java.time.ZoneId
+
+class LeadMessagingService : FirebaseMessagingService() {
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        registerToken(token)
+    }
+
+    override fun onMessageReceived(message: RemoteMessage) {
+        super.onMessageReceived(message)
+        if (message.data["type"] == "call_log_request") {
+            Thread { submitCallLogStats(message.data["requestId"].orEmpty(), message.data["date"].orEmpty()) }.start()
+            return
+        }
+        if (message.data["type"] == "app_update") {
+            showUpdateNotification(message.data["title"] ?: "Mandatory App Update", message.data["body"] ?: "Update now to continue.")
+            return
+        }
+        val title = message.notification?.title ?: message.data["title"] ?: "New lead assigned"
+        val body = message.notification?.body ?: message.data["body"] ?: "Open the app to view your lead."
+        val leadId = message.data["leadId"].orEmpty()
+        val phone = message.data["phone"].orEmpty()
+        val channelId = "lead_assignments"
+        val manager = getSystemService(NotificationManager::class.java)
+        BadgeStore.incrementLeads(this)
+        manager.createNotificationChannel(NotificationChannel(channelId, "Lead assignments", NotificationManager.IMPORTANCE_HIGH))
+        val intent = Intent(this, if (leadId.isBlank()) DashboardActivity::class.java else LeadDetailsActivity::class.java)
+            .putExtra("leadId", leadId)
+            .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val pendingIntent = PendingIntent.getActivity(this, leadId.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val builder = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setNumber(BadgeStore.total(this))
+            .setContentIntent(pendingIntent)
+        if (phone.isNotBlank()) {
+            val callIntent = Intent(Intent.ACTION_DIAL, android.net.Uri.parse("tel:$phone"))
+            val callPendingIntent = PendingIntent.getActivity(this, phone.hashCode(), callIntent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            builder.addAction(android.R.drawable.sym_action_call, "Call", callPendingIntent)
+        }
+        val notification = builder.build()
+        manager.notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
+    }
+
+    private fun showUpdateNotification(title: String, body: String) {
+        val channelId = "mandatory_updates"
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(NotificationChannel(channelId, "Mandatory app updates", NotificationManager.IMPORTANCE_HIGH))
+        val pendingIntent = PendingIntent.getActivity(this, 9101, Intent(this, UpdateActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val notification = NotificationCompat.Builder(this, channelId).setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_MAX).setOngoing(true).setAutoCancel(false).setContentIntent(pendingIntent).build()
+        manager.notify(9101, notification)
+    }
+
+    private fun submitCallLogStats(requestId: String, requestedDate: String) {
+        val session = SessionManager(this)
+        if (!session.hasRememberedLogin() || requestId.isBlank()) return
+        val response = JSONObject().put("action", "submitCallLogStats").put("requestId", requestId)
+            .put("employeeId", session.getEmployeeId()).put("androidId", DeviceUtils.getAndroidId(this))
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
+            ApiClient.post(response.put("error", "Call log permission is not allowed on the employee phone.")) { _, _, _ -> }
+            return
+        }
+        try {
+            val day = LocalDate.parse(requestedDate)
+            val zone = ZoneId.systemDefault()
+            val start = day.atStartOfDay(zone).toInstant().toEpochMilli()
+            val end = day.plusDays(1).atStartOfDay(zone).toInstant().toEpochMilli()
+            var outgoing = 0; var incoming = 0; var missed = 0; var duration = 0L
+            val projection = arrayOf(CallLog.Calls.TYPE, CallLog.Calls.DURATION)
+            contentResolver.query(CallLog.Calls.CONTENT_URI, projection, "${CallLog.Calls.DATE} >= ? AND ${CallLog.Calls.DATE} < ?", arrayOf(start.toString(), end.toString()), null)?.use { cursor ->
+                val typeIndex = cursor.getColumnIndexOrThrow(CallLog.Calls.TYPE)
+                val durationIndex = cursor.getColumnIndexOrThrow(CallLog.Calls.DURATION)
+                while (cursor.moveToNext()) {
+                    when (cursor.getInt(typeIndex)) {
+                        CallLog.Calls.OUTGOING_TYPE -> { outgoing++; duration += cursor.getLong(durationIndex).coerceAtLeast(0) }
+                        CallLog.Calls.INCOMING_TYPE -> { incoming++; duration += cursor.getLong(durationIndex).coerceAtLeast(0) }
+                        CallLog.Calls.MISSED_TYPE, CallLog.Calls.REJECTED_TYPE -> missed++
+                    }
+                }
+            }
+            val stats = JSONObject().put("totalCalls", outgoing + incoming + missed).put("outgoingCalls", outgoing)
+                .put("incomingCalls", incoming).put("missedCalls", missed).put("totalDurationSeconds", duration)
+            ApiClient.post(response.put("stats", stats)) { _, _, _ -> }
+        } catch (error: Exception) {
+            ApiClient.post(response.put("error", error.localizedMessage ?: "Could not read today's call totals.")) { _, _, _ -> }
+        }
+    }
+
+    private fun registerToken(token: String) {
+        val session = SessionManager(this)
+        if (!session.hasRememberedLogin()) return
+        ApiClient.post(JSONObject().put("action", "registerPushToken").put("employeeId", session.getEmployeeId()).put("androidId", DeviceUtils.getAndroidId(this)).put("pushToken", token)) { _, _, _ -> }
+    }
+}

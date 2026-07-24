@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "531197525693",
+    "project_id": "global-one-app",
+    "storage_bucket": "global-one-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:531197525693:android:b7ce619c2e9eac71e981d4",
+        "android_client_info": {
+          "package_name": "com.akash.globaloneapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA_DfbOgfBV0-6nP0Lnr8skb6-AbLvpxO8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -63,7 +63,7 @@ export default function EmployeeAttendance() {
   }
 
   async function getTodayAttendanceStatus(employeeId) {
-    const result = await AttendanceApi.getAttendance();
+    const result = await AttendanceApi.getEmployeeAttendance(employeeId);
     if (!result.success || !Array.isArray(result.data)) return "";
     const row = result.data.find(item => String(item.employeeId) === String(employeeId));
     return String(row?.[getTodayISODate()] || "").trim();

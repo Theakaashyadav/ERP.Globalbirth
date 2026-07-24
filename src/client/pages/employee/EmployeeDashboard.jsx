@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Fingerprint, IdCard, User } from "lucide-react";
+import { Fingerprint, IdCard, PhoneCall, User } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 
 export default function EmployeeDashboard() {
@@ -17,6 +17,11 @@ export default function EmployeeDashboard() {
             <div className="iconBox"><IdCard size={28} /></div>
             <h2>My Profile</h2>
             <p className="muted">View your employee ID, department, designation and registered browser status.</p>
+          </Link>
+          <Link className="actionCard purple" to="/employee/leads">
+            <div className="iconBox"><PhoneCall size={28} /></div>
+            <h2>New Leads</h2>
+            <p className="muted">Open assigned leads, update remarks and track daily call attempts.</p>
           </Link>
         </section>
       </div>

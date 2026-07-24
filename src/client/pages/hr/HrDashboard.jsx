@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BarChart3, FileText, LayoutDashboard, UsersRound } from "lucide-react";
+import { BarChart3, FileText, LayoutDashboard, PhoneCall, UsersRound } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 
 export default function HrDashboard() {
@@ -22,6 +22,11 @@ export default function HrDashboard() {
             <div className="iconBox"><FileText size={28} /></div>
             <h2>Salary Slip</h2>
             <p className="muted">Generate professional employee salary slips and print instantly.</p>
+          </Link>
+          <Link className="actionCard green" to="/hr/call-activity">
+            <div className="iconBox"><PhoneCall size={28} /></div>
+            <h2>Realtime Call Activity</h2>
+            <p className="muted">Request today&apos;s call totals directly from selected employee phones without database storage.</p>
           </Link>
         </section>
       </div>

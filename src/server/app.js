@@ -19,6 +19,17 @@ function createApp(options = {}) {
 
   app.get("/api/health", requireClientApiKey, healthCheck);
   app.use("/api/attendance", requireClientApiKey, attendanceRoutes);
+  app.use("/api/app-update", requireClientApiKey, require("./routes/app-update.routes"));
+
+  if (options.apiOnly) {
+    app.use((req, res) => {
+      res.status(404).json({
+        success: false,
+        message: "API route not found."
+      });
+    });
+    return app;
+  }
 
   if (options.vite) {
     app.use(options.vite.middlewares);

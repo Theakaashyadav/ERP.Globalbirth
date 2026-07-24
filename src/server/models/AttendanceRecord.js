@@ -16,42 +16,20 @@ const attendanceRecordSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
-    gpsVerified: {
-      type: Boolean,
-      default: false
-    },
-    gpsLatitude: {
-      type: Number,
-      default: null
-    },
-    gpsLongitude: {
-      type: Number,
-      default: null
-    },
-    gpsAccuracy: {
-      type: Number,
-      default: null
-    },
-    officeDistanceMeter: {
-      type: Number,
-      default: null
-    },
-    allowedRadiusMeter: {
-      type: Number,
-      default: null
-    },
-    officeVerified: {
-      type: Boolean,
-      default: false
-    },
-    attendanceSource: {
+    status: {
       type: String,
-      default: "web-gps",
+      enum: ["Present", "Late", "Absent", "Leave"],
+      default: "Present",
+      trim: true
+    },
+    remark: {
+      type: String,
+      default: "",
       trim: true
     }
   },
   {
-    timestamps: true
+    versionKey: false
   }
 );
 

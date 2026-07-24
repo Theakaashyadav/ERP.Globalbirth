@@ -1,6 +1,10 @@
 const { defineConfig } = require("vite");
 const react = require("@vitejs/plugin-react");
 
+const appPort = Number(process.env.APP_PORT || 5173);
+const apiPort = process.env.API_PORT || process.env.PORT || 3001;
+const apiTarget = "http://localhost:" + apiPort;
+
 module.exports = defineConfig({
   plugins: [react()],
   build: {
@@ -8,10 +12,11 @@ module.exports = defineConfig({
     emptyOutDir: true
   },
   server: {
-    port: 5173,
+    port: appPort,
+    strictPort: true,
     proxy: {
-      "/api": "http://localhost:3000",
-      "/attendance-config.js": "http://localhost:3000"
+      "/api": apiTarget,
+      "/attendance-config.js": apiTarget
     }
   }
 });

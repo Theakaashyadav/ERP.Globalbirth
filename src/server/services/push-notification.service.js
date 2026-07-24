@@ -1,0 +1,110 @@
+const fs = require("fs");
+const path = require("path");
+
+let messaging = null;
+let initializationAttempted = false;
+
+function initializeMessaging() {
+  if (initializationAttempted) return messaging;
+  initializationAttempted = true;
+  try {
+    const { applicationDefault, cert, getApps, initializeApp } = require("firebase-admin/app");
+    const { getMessaging } = require("firebase-admin/messaging");
+    let credential = null;
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+      credential = cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON));
+    } else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
+      const credentialPath = path.resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+      credential = cert(JSON.parse(fs.readFileSync(credentialPath, "utf8")));
+    } else {
+      const defaultCredentialPath = path.resolve("firebase-service-account.json");
+      if (fs.existsSync(defaultCredentialPath)) {
+        credential = cert(JSON.parse(fs.readFileSync(defaultCredentialPath, "utf8")));
+      }
+    }
+    if (!credential) {
+      console.warn("Firebase push disabled: configure FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH.");
+      return null;
+    }
+    const app = getApps()[0] || initializeApp({ credential: credential || applicationDefault() });
+    messaging = getMessaging(app);
+  } catch (error) {
+    console.error("Firebase push initialization failed:", error.message);
+  }
+  return messaging;
+}
+
+async function sendLeadAssignment(employee, lead, assignedBy) {
+  if (!employee || !employee.pushToken || !lead) return false;
+  const client = initializeMessaging();
+  if (!client) return false;
+  try {
+    await client.send({
+      token: employee.pushToken,
+      data: {
+        type: "lead_assignment",
+        leadId: String(lead.leadId),
+        phone: String(lead.phone),
+        title: "New Lead",
+        body: "Call Within 30 Minutes"
+      },
+      android: { priority: "high" }
+    });
+    return true;
+  } catch (error) {
+    console.error(`Lead notification failed for ${employee.employeeId}:`, error.message);
+    return false;
+  }
+}
+
+async function sendCallLogRequest(employee, requestId, date) {
+  if (!employee?.pushToken) return false;
+  const client = initializeMessaging();
+  if (!client) return false;
+  try {
+    await client.send({
+      token: employee.pushToken,
+      data: { type: "call_log_request", requestId: String(requestId), date: String(date) },
+      android: { priority: "high", ttl: 120000 }
+    });
+    return true;
+  } catch (error) {
+    console.error(`Call-log request failed for ${employee.employeeId}:`, error.message);
+    return false;
+  }
+}
+
+async function sendMandatoryUpdate(tokens, release) {
+  const validTokens = [...new Set((tokens || []).filter(Boolean))];
+  if (!validTokens.length) return 0;
+  const client = initializeMessaging();
+  if (!client) return 0;
+  let sent = 0;
+  for (let index = 0; index < validTokens.length; index += 500) {
+    const response = await client.sendEachForMulticast({
+      tokens: validTokens.slice(index, index + 500),
+      data: { type: "app_update", title: "Mandatory App Update", body: `Version ${release.versionName} is ready. Update now to continue.`, versionCode: String(release.versionCode) },
+      android: { priority: "high" }
+    });
+    sent += response.successCount;
+  }
+  return sent;
+}
+
+async function verifyPhoneIdToken(idToken, expectedPhone) {
+  if (!idToken || !expectedPhone) return false;
+  const client = initializeMessaging();
+  if (!client) return false;
+  try {
+    const { getApps } = require("firebase-admin/app");
+    const { getAuth } = require("firebase-admin/auth");
+    const decoded = await getAuth(getApps()[0]).verifyIdToken(idToken);
+    const verifiedPhone = String(decoded.phone_number || "").replace(/\D/g, "").slice(-10);
+    return verifiedPhone === String(expectedPhone).replace(/\D/g, "").slice(-10);
+  } catch (error) {
+    console.error("Phone verification token rejected:", error.message);
+    return false;
+  }
+}
+
+module.exports = { sendLeadAssignment, sendCallLogRequest, sendMandatoryUpdate, verifyPhoneIdToken };
