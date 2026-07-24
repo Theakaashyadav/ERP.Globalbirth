@@ -3,6 +3,7 @@ const Employee = require("../models/Employee");
 const AttendanceRecord = require("../models/AttendanceRecord");
 const Lead = require("../models/Lead");
 const MobileFeaturePolicy = require("../models/MobileFeaturePolicy");
+const DashboardCredential = require("../models/DashboardCredential");
 const { connectDatabase } = require("../db/connection");
 
 async function getDatabaseAnalysis() {
@@ -12,9 +13,9 @@ async function getDatabaseAnalysis() {
   await connection.db.admin().ping();
   const latencyMs = Date.now() - pingStartedAt;
   const stats = await connection.db.command({ dbStats: 1, scale: 1 });
-  const [employees, attendance, leads, policies] = await Promise.all([
+  const [employees, attendance, leads, policies, dashboardAccounts] = await Promise.all([
     Employee.countDocuments({}), AttendanceRecord.countDocuments({}),
-    Lead.countDocuments({}), MobileFeaturePolicy.countDocuments({})
+    Lead.countDocuments({}), MobileFeaturePolicy.countDocuments({}), DashboardCredential.countDocuments({})
   ]);
   const configuredCapacity = Number(process.env.MONGODB_STORAGE_LIMIT_BYTES || 0);
   const reportedCapacity = Number(stats.fsTotalSize || 0);
@@ -47,7 +48,8 @@ async function getDatabaseAnalysis() {
         { key: "employees", label: "Employees", count: employees },
         { key: "attendance", label: "Attendance Records", count: attendance },
         { key: "leads", label: "Leads", count: leads },
-        { key: "featurePolicies", label: "Feature Policies", count: policies }
+        { key: "featurePolicies", label: "Feature Policies", count: policies },
+        { key: "dashboardAccounts", label: "Dashboard Accounts", count: dashboardAccounts }
       ]
     }
   };

@@ -20,6 +20,7 @@ import ReleaseManager from "./pages/admin/ReleaseManager.jsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import MobileFeatureAccess from "./pages/admin/MobileFeatureAccess.jsx";
 import DatabaseAnalysis from "./pages/admin/DatabaseAnalysis.jsx";
+import DashboardCredentials from "./pages/admin/DashboardCredentials.jsx";
 import MarketingDashboard from "./pages/marketing/MarketingDashboard.jsx";
 import LeadAnalysis from "./pages/marketing/LeadAnalysis.jsx";
 import MarketingHome from "./pages/marketing/MarketingHome.jsx";
@@ -57,6 +58,7 @@ createRoot(document.getElementById("root")).render(
           <Route path="/admin/mobile-features" element={protect("admin", <MobileFeatureAccess />)} />
           <Route path="/admin/releases" element={protect("admin", <ReleaseManager />)} />
           <Route path="/admin/database" element={protect("admin", <DatabaseAnalysis />)} />
+          <Route path="/admin/credentials" element={protect("admin", <DashboardCredentials />)} />
           {!isHrOnly && !isMarketingOnly && (
             <>
               <Route path="/employee/register" element={<EmployeeRegister />} />

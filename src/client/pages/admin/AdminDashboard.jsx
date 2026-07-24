@@ -1,9 +1,10 @@
 import { Link, useNavigate } from "react-router-dom";
-import { BarChart3, Database, LogOut, Megaphone, Rocket, Settings2, ShieldCheck, Users } from "lucide-react";
+import { BarChart3, Database, KeyRound, LogOut, Megaphone, Rocket, Settings2, ShieldCheck, Users } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 import { logout } from "../../auth.js";
 
 const dashboards = [
+  { title: "Dashboard Credentials", description: "Reset Admin, HR and Marketing login IDs and passwords securely.", path: "/admin/credentials", icon: KeyRound, tone: "purple" },
   {
     title: "Database Analysis",
     description: "Live MongoDB health, connection, storage utilization, indexes and record totals.",

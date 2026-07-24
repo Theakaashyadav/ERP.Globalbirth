@@ -2,6 +2,7 @@ const attendance = require("../services/attendance.service");
 const callLogs = require("../services/call-log.service");
 const mobileFeatures = require("../services/mobile-feature.service");
 const databaseAnalysis = require("../services/database-analysis.service");
+const dashboardCredentials = require("../services/dashboard-credential.service");
 const Employee = require("../models/Employee");
 const { connectDatabase } = require("../db/connection");
 const { readDashboardSession, readEmployeeSession, canAccessDashboardRole } = require("../security/dashboard-session");
@@ -39,6 +40,8 @@ const handlers = {
   ,submitCallLogStats: callLogs.submitCallLogStats
   ,getCallLogStatsRequest: callLogs.getCallLogStatsRequest
   ,getDatabaseAnalysis: databaseAnalysis.getDatabaseAnalysis
+  ,getDashboardCredentials: dashboardCredentials.getDashboardCredentials
+  ,updateDashboardCredential: dashboardCredentials.updateDashboardCredential
 };
 
 async function handleAttendanceAction(req, res) {
@@ -48,7 +51,8 @@ async function handleAttendanceAction(req, res) {
     updateEmployee: ["hr"], deleteEmployee: ["hr"],
     assignLead: ["marketing"], reassignReturnedLead: ["marketing"], getMarketingLeadDashboard: ["marketing"],
     requestCallLogStats: ["hr", "marketing"], getCallLogStatsRequest: ["hr", "marketing"],
-    getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"]
+    getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"],
+    getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"]
   };
   const allowedRoles = rolePolicies[action];
   if (allowedRoles && !canAccessDashboardRole(readDashboardSession(req), allowedRoles)) {

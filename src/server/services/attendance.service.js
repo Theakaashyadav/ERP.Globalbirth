@@ -3,8 +3,8 @@ const Employee = require("../models/Employee");
 const AttendanceRecord = require("../models/AttendanceRecord");
 const Lead = require("../models/Lead");
 const { connectDatabase } = require("../db/connection");
-const { dashboardUsers } = require("../config");
 const { createDashboardSession, createEmployeeSession } = require("../security/dashboard-session");
+const dashboardCredentials = require("./dashboard-credential.service");
 const { sendLeadAssignment } = require("./push-notification.service");
 const { hasEmployeeFeature } = require("./mobile-feature.service");
 
@@ -458,9 +458,6 @@ async function loginDashboardUser(payload) {
   const role = cleanText(payload.role).toLowerCase();
   const username = cleanText(payload.username);
   const password = cleanText(payload.password);
-  const user = dashboardUsers[role];
-  const admin = dashboardUsers.admin;
-
   if (!["hr", "marketing", "admin"].includes(role)) {
     return {
       success: false,
@@ -468,8 +465,10 @@ async function loginDashboardUser(payload) {
     };
   }
 
-  const isRoleUser = user && username === user.username && password === user.password;
-  const isAdminUser = username === admin.username && password === admin.password;
+  const roleUser = await dashboardCredentials.authenticate(role, username, password);
+  const adminUser = role === "admin" ? roleUser : await dashboardCredentials.authenticate("admin", username, password);
+  const isRoleUser = Boolean(roleUser);
+  const isAdminUser = Boolean(adminUser);
 
   if (!isRoleUser && !isAdminUser) {
     return {
@@ -484,7 +483,7 @@ async function loginDashboardUser(payload) {
     user: {
       role: isAdminUser ? "admin" : role,
       allowedRole: role,
-      name: isAdminUser ? admin.name : user.name,
+      name: isAdminUser ? adminUser.name : roleUser.name,
       username
     }
   };

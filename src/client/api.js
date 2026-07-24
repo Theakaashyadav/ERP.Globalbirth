@@ -75,4 +75,6 @@ export const AttendanceApi = {
   ,requestCallLogStats: (employeeIds, date) => request("requestCallLogStats", { employeeIds, date })
   ,getCallLogStatsRequest: requestId => request("getCallLogStatsRequest", { requestId })
   ,getDatabaseAnalysis: () => request("getDatabaseAnalysis")
+  ,getDashboardCredentials: () => request("getDashboardCredentials")
+  ,updateDashboardCredential: (role, username, password) => request("updateDashboardCredential", { role, username, password })
 };

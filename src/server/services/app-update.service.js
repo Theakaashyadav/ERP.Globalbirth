@@ -1,7 +1,6 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
-const { dashboardUsers } = require("../config");
 const Employee = require("../models/Employee");
 const { connectDatabase } = require("../db/connection");
 const { sendMandatoryUpdate } = require("./push-notification.service");
@@ -19,11 +18,6 @@ function latest(req, res) {
   res.json({ success: true, available: true, release: { ...release, fileName: undefined, downloadUrl: "/api/app-update/download" } });
 }
 async function publish(req, res) {
-  const admin = dashboardUsers.admin;
-  if (String(req.body.username || "").trim() !== admin.username || String(req.body.password || "") !== admin.password) {
-    if (req.file) fs.unlink(req.file.path, () => {});
-    return res.status(401).json({ success: false, message: "Invalid admin credentials." });
-  }
   const versionCode = Number(req.body.versionCode);
   const versionName = String(req.body.versionName || "").trim();
   const notes = String(req.body.notes || "").trim();

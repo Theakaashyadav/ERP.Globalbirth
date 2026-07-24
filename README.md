@@ -32,7 +32,7 @@ Never commit `.env`, Firebase service-account JSON, MongoDB credentials or signi
 From `android-app`, provide the hosted attendance endpoint and shared client key:
 
 ```powershell
-.\gradlew.bat :app:assembleDebug -PATTENDANCE_API_URL=https://erp.globalbirth.com/api/attendance -PATTENDANCE_API_KEY=YOUR_CLIENT_API_KEY
+.\gradlew.bat :app:assembleDebug -PATTENDANCE_API_URL=https://mediumslateblue-goose-217733.hostingersite.com/api/attendance -PATTENDANCE_API_KEY=YOUR_CLIENT_API_KEY
 ```
 
 For production distribution, configure an Android release signing key and use `assembleRelease`.

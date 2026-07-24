@@ -33,6 +33,8 @@ Local URLs:
 
 ## Hostinger Node.js App Settings
 
+Production site: `https://mediumslateblue-goose-217733.hostingersite.com`
+
 Use the GitHub repository deployment:
 
 - Framework preset: `Express`
@@ -76,7 +78,7 @@ For production, restrict access if Hostinger provides stable outbound IPs for yo
 Use the hosted API URL and the same client key:
 
 ```http
-POST https://your-domain.com/api/attendance
+POST https://mediumslateblue-goose-217733.hostingersite.com/api/attendance
 Authorization: Bearer YOUR_CLIENT_API_KEY
 Content-Type: application/json
 
