@@ -40,13 +40,13 @@ class AttendanceActivity : AppCompatActivity() {
     private lateinit var session: SessionManager
     private val handler = Handler(Looper.getMainLooper())
 
-    private val allowedWifiNames = listOf("Globalbirth", "Globalbirth_5G")
-    private val officeIpPrefix = "192.168.1."
-
     private val compOffEligibleDays = listOf("Tuesday")
 
     private var isWifiVerified = false
     private var wifiMatchScore = 0
+    private var wifiSettingsLoaded = false
+    private var matchedOffice: OfficeWifi? = null
+    private var approvedOffices = emptyList<OfficeWifi>()
 
     private var currentWifiName = ""
     private var currentWifiBssid = ""
@@ -62,6 +62,8 @@ class AttendanceActivity : AppCompatActivity() {
     private data class AttendanceRule(
         val isCompOffEligibleDay: Boolean
     )
+
+    private data class OfficeWifi(val officeId: String, val name: String, val ssid: String, val bssid: String, val ipPrefix: String)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,11 +89,7 @@ class AttendanceActivity : AppCompatActivity() {
         loadSessionEmployee()
         startClock()
 
-        if (hasLocationPermission()) {
-            updateWifiDetails()
-        } else {
-            requestLocationPermission()
-        }
+        loadOfficeWifiSettings()
 
         btnSubmit.setOnClickListener {
             saveSelfAttendance()
@@ -161,9 +159,27 @@ class AttendanceActivity : AppCompatActivity() {
                 locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
     }
 
+    private fun loadOfficeWifiSettings() {
+        wifiSettingsLoaded = false
+        isWifiVerified = false
+        btnSubmit.isEnabled = false
+        setCheckingWifiUi()
+        val data = JSONObject().apply { put("action", "getEmployeeOfficeWifiSettings"); put("employeeId", employeeId) }
+        ApiClient.post(data) { success, message, response -> runOnUiThread {
+            if (!success) { setWifiNotVerifiedUi(message.ifEmpty { "Office WiFi settings unavailable" }); return@runOnUiThread }
+            val offices = response?.optJSONObject("data")?.optJSONArray("offices") ?: JSONArray()
+            approvedOffices = (0 until offices.length()).mapNotNull { index -> offices.optJSONObject(index)?.let { office -> OfficeWifi(office.optString("officeId"), office.optString("name"), cleanWifiName(office.optString("ssid")), office.optString("bssid").trim().lowercase(Locale.ENGLISH), office.optString("ipPrefix").trim()) } }
+            wifiSettingsLoaded = true
+            if (approvedOffices.isEmpty()) setWifiNotVerifiedUi("No office WiFi configured by admin")
+            else if (hasLocationPermission()) updateWifiDetails() else requestLocationPermission()
+        } }
+    }
+
     private fun updateWifiDetails() {
         try {
             setCheckingWifiUi()
+
+            if (!wifiSettingsLoaded) { setWifiNotVerifiedUi("Loading approved office WiFi..."); return }
 
             if (!hasLocationPermission()) {
                 isWifiVerified = false
@@ -229,17 +245,16 @@ class AttendanceActivity : AppCompatActivity() {
             currentLinkSpeed = "${finalWifiInfo?.linkSpeed ?: 0} Mbps"
             currentFrequency = "${finalWifiInfo?.frequency ?: 0} MHz"
 
-            val nameMatched = allowedWifiNames.any {
-                currentWifiName.equals(it, ignoreCase = true)
+            matchedOffice = approvedOffices.firstOrNull { office ->
+                val checks = mutableListOf<Boolean>()
+                if (office.ssid.isNotBlank()) checks += currentWifiName.equals(office.ssid, ignoreCase = true)
+                if (office.bssid.isNotBlank()) checks += currentWifiBssid.equals(office.bssid, ignoreCase = true)
+                if (office.ipPrefix.isNotBlank()) checks += currentWifiIp.startsWith(office.ipPrefix)
+                checks.isNotEmpty() && checks.all { it }
             }
-
-            val ipMatched = currentWifiIp.startsWith(officeIpPrefix)
-
-            wifiMatchScore = 0
-            if (nameMatched) wifiMatchScore++
-            if (ipMatched) wifiMatchScore++
-
-            isWifiVerified = nameMatched || ipMatched
+            val ipMatched = matchedOffice != null
+            wifiMatchScore = if (matchedOffice == null) 0 else 1
+            isWifiVerified = matchedOffice != null
 
             if (!isValidSsid(currentWifiName)) {
                 if (ipMatched) {
@@ -284,6 +299,8 @@ class AttendanceActivity : AppCompatActivity() {
 
     private fun saveSelfAttendance() {
         hideMessages()
+
+        if (!wifiSettingsLoaded) { showError("Approved office WiFi is still loading. Please retry."); loadOfficeWifiSettings(); return }
 
         if (!hasLocationPermission()) {
             showError("Location permission required to verify WiFi.")
@@ -331,6 +348,7 @@ class AttendanceActivity : AppCompatActivity() {
         val data = JSONObject().apply {
             put("action", "saveAttendance")
             put("records", JSONArray().put(record))
+            put("officeId", matchedOffice?.officeId ?: "")
         }
 
         ApiClient.post(data) { success, message, _ ->
@@ -362,12 +380,15 @@ class AttendanceActivity : AppCompatActivity() {
     }
 
     private fun setWifiVerifiedUi() {
+        btnSubmit.isEnabled = true
         tvWifiStatus.text = "✅ Office WiFi Verified"
+        tvWifiStatus.text = "Office WiFi verified - ${matchedOffice?.name ?: "Approved Office"}"
         tvWifiStatus.setBackgroundResource(R.drawable.status_green)
         tvWifiStatus.setTextColor(ContextCompat.getColor(this, android.R.color.black))
     }
 
     private fun setWifiNotVerifiedUi(message: String) {
+        btnSubmit.isEnabled = false
         tvWifiStatus.text = message
         tvWifiStatus.setBackgroundResource(R.drawable.status_red)
         tvWifiStatus.setTextColor(ContextCompat.getColor(this, android.R.color.black))

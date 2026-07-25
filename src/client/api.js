@@ -13,7 +13,7 @@ function employeeToken() {
 }
 
 async function request(action, payload = {}) {
-  const employeeActions = new Set(["getEmployeeProfile", "getEmployeeAttendance", "saveAttendance", "getEmployeeLeads", "getTeamLeadWorkspaceLeads", "getLeadDetails", "getTeamExecutives", "assignLeadToExecutive", "recordLeadCall", "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "submitCallLogStats"]);
+  const employeeActions = new Set(["getEmployeeProfile", "getEmployeeAttendance", "saveAttendance", "getEmployeeLeads", "getTeamLeadWorkspaceLeads", "getLeadDetails", "getTeamExecutives", "assignLeadToExecutive", "recordLeadCall", "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "getEmployeeOfficeWifiSettings", "submitCallLogStats"]);
   if (employeeActions.has(action) && !payload.androidId) {
     payload = { ...payload, androidId: localStorage.getItem("backupDeviceId") || "" };
   }
@@ -77,4 +77,6 @@ export const AttendanceApi = {
   ,getDatabaseAnalysis: () => request("getDatabaseAnalysis")
   ,getDashboardCredentials: () => request("getDashboardCredentials")
   ,updateDashboardCredential: (role, username, password) => request("updateDashboardCredential", { role, username, password })
+  ,getOfficeWifiSettings: () => request("getOfficeWifiSettings")
+  ,updateOfficeWifiSettings: offices => request("updateOfficeWifiSettings", { offices })
 };

@@ -21,6 +21,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import MobileFeatureAccess from "./pages/admin/MobileFeatureAccess.jsx";
 import DatabaseAnalysis from "./pages/admin/DatabaseAnalysis.jsx";
 import DashboardCredentials from "./pages/admin/DashboardCredentials.jsx";
+import OfficeWifiSettings from "./pages/admin/OfficeWifiSettings.jsx";
 import MarketingDashboard from "./pages/marketing/MarketingDashboard.jsx";
 import LeadAnalysis from "./pages/marketing/LeadAnalysis.jsx";
 import MarketingHome from "./pages/marketing/MarketingHome.jsx";
@@ -59,6 +60,7 @@ createRoot(document.getElementById("root")).render(
           <Route path="/admin/releases" element={protect("admin", <ReleaseManager />)} />
           <Route path="/admin/database" element={protect("admin", <DatabaseAnalysis />)} />
           <Route path="/admin/credentials" element={protect("admin", <DashboardCredentials />)} />
+          <Route path="/admin/office-wifi" element={protect("admin", <OfficeWifiSettings />)} />
           {!isHrOnly && !isMarketingOnly && (
             <>
               <Route path="/employee/register" element={<EmployeeRegister />} />

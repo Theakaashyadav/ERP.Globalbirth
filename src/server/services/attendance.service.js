@@ -5,6 +5,7 @@ const Lead = require("../models/Lead");
 const { connectDatabase } = require("../db/connection");
 const { createDashboardSession, createEmployeeSession } = require("../security/dashboard-session");
 const dashboardCredentials = require("./dashboard-credential.service");
+const officeWifi = require("./office-wifi.service");
 const { sendLeadAssignment } = require("./push-notification.service");
 const { hasEmployeeFeature } = require("./mobile-feature.service");
 
@@ -582,6 +583,10 @@ async function getEmployeeProfile(payload) {
 
 async function saveAttendance(payload) {
   await connectDatabase();
+
+  if (cleanText(payload.androidId) && !(await officeWifi.isActiveOffice(payload.officeId))) {
+    return { success: false, message: "This office Wi-Fi is no longer approved. Refresh the attendance page." };
+  }
 
   const records = Array.isArray(payload.records) ? payload.records : [];
   const now = new Date();

@@ -3,6 +3,7 @@ const callLogs = require("../services/call-log.service");
 const mobileFeatures = require("../services/mobile-feature.service");
 const databaseAnalysis = require("../services/database-analysis.service");
 const dashboardCredentials = require("../services/dashboard-credential.service");
+const officeWifi = require("../services/office-wifi.service");
 const Employee = require("../models/Employee");
 const { connectDatabase } = require("../db/connection");
 const { readDashboardSession, readEmployeeSession, canAccessDashboardRole } = require("../security/dashboard-session");
@@ -42,6 +43,9 @@ const handlers = {
   ,getDatabaseAnalysis: databaseAnalysis.getDatabaseAnalysis
   ,getDashboardCredentials: dashboardCredentials.getDashboardCredentials
   ,updateDashboardCredential: dashboardCredentials.updateDashboardCredential
+  ,getOfficeWifiSettings: officeWifi.getOfficeWifiSettings
+  ,updateOfficeWifiSettings: officeWifi.updateOfficeWifiSettings
+  ,getEmployeeOfficeWifiSettings: officeWifi.getEmployeeOfficeWifiSettings
 };
 
 async function handleAttendanceAction(req, res) {
@@ -52,7 +56,8 @@ async function handleAttendanceAction(req, res) {
     assignLead: ["marketing"], reassignReturnedLead: ["marketing"], getMarketingLeadDashboard: ["marketing"],
     requestCallLogStats: ["hr", "marketing"], getCallLogStatsRequest: ["hr", "marketing"],
     getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"],
-    getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"]
+    getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
+    getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"]
   };
   const allowedRoles = rolePolicies[action];
   if (allowedRoles && !canAccessDashboardRole(readDashboardSession(req), allowedRoles)) {
@@ -63,7 +68,7 @@ async function handleAttendanceAction(req, res) {
   const employeeActions = new Set([
     "getEmployeeProfile", "getEmployeeAttendance", "saveAttendance", "getEmployeeLeads", "getTeamLeadWorkspaceLeads",
     "getLeadDetails", "getTeamExecutives", "assignLeadToExecutive", "recordLeadCall",
-    "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "submitCallLogStats"
+    "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "getEmployeeOfficeWifiSettings", "submitCallLogStats"
   ]);
   if (employeeActions.has(action)) {
     const employeeId = String(
