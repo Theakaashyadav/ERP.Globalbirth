@@ -13,7 +13,7 @@ function employeeToken() {
 }
 
 async function request(action, payload = {}) {
-  const employeeActions = new Set(["getEmployeeProfile", "getEmployeeAttendance", "saveAttendance", "getEmployeeLeads", "getTeamLeadWorkspaceLeads", "getLeadDetails", "getTeamExecutives", "assignLeadToExecutive", "recordLeadCall", "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "getEmployeeOfficeWifiSettings", "submitCallLogStats"]);
+  const employeeActions = new Set(["getEmployeeProfile", "getEmployeeAttendance", "saveAttendance", "getEmployeeLeads", "getTeamLeadWorkspaceLeads", "getLeadDetails", "getTeamExecutives", "assignLeadToExecutive", "recordLeadCall", "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "getEmployeeOfficeWifiSettings", "submitOfficeWifi", "getEmployeeWifiSubmissions", "submitCallLogStats"]);
   if (employeeActions.has(action) && !payload.androidId) {
     payload = { ...payload, androidId: localStorage.getItem("backupDeviceId") || "" };
   }

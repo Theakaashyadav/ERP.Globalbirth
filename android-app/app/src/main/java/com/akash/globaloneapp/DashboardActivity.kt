@@ -121,6 +121,7 @@ class DashboardActivity : AppCompatActivity() {
         root.addView(EmployeeUi.section(this, "YOUR WORKSPACE"))
         val tiles = mutableListOf<View>()
         if (session.hasMobileFeature("attendance")) tiles.add(modernActionCard(R.drawable.ic_dashboard_attendance, "Attendance", "Mark attendance and review your records", "#059669", "#ECFDF5") { startActivity(Intent(this, AttendanceActivity::class.java)) })
+        if (session.hasMobileFeature("officeWifi")) tiles.add(modernActionCard(R.drawable.ic_dashboard_wifi, "Set Office Wi-Fi", "Submit a connected office network for admin approval", "#0891B2", "#ECFEFF") { startActivity(Intent(this, SetOfficeWifiActivity::class.java)) })
         if (session.hasMobileFeature("leads")) tiles.add(modernActionCard(R.drawable.ic_dashboard_leads, "Assigned Leads", if (session.isTeamLead()) "Call leads or assign them to your executives" else "Call and update your assigned prospects", "#7C3AED", "#F5F3FF", assignedLeadCount) { startActivity(Intent(this, LeadsActivity::class.java)) })
         if (session.hasMobileFeature("alerts")) tiles.add(modernActionCard(R.drawable.ic_nav_alerts, "Lead Alerts", "Today’s follow-ups and remaining mandatory calls", "#D97706", "#FFFBEB", leadAlertCount) { startActivity(Intent(this, AlertsActivity::class.java)) })
         if (session.hasMobileFeature("profile")) tiles.add(modernActionCard(R.drawable.ic_dashboard_profile, "My Profile", "View your personal and employment information", "#2563EB", "#EFF6FF") { startActivity(Intent(this, ProfileActivity::class.java)) })

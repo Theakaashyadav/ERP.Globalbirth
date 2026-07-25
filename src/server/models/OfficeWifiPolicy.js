@@ -6,7 +6,11 @@ const officeSchema = new mongoose.Schema({
   ssid: { type: String, default: "" },
   bssid: { type: String, default: "" },
   ipPrefix: { type: String, default: "" },
-  active: { type: Boolean, default: true }
+  active: { type: Boolean, default: false },
+  status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
+  submittedByEmployeeId: { type: String, default: "" },
+  submittedAt: { type: Date, default: null },
+  reviewedAt: { type: Date, default: null }
 }, { _id: false });
 
 const officeWifiPolicySchema = new mongoose.Schema({

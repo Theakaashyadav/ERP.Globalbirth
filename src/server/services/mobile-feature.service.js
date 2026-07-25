@@ -2,7 +2,7 @@ const Employee = require("../models/Employee");
 const MobileFeaturePolicy = require("../models/MobileFeaturePolicy");
 const { connectDatabase } = require("../db/connection");
 
-const FEATURES = ["attendance", "leads", "alerts", "profile"];
+const FEATURES = ["attendance", "leads", "alerts", "profile", "officeWifi"];
 const DEFAULT_ROLES = {
   tl: [...FEATURES],
   executive: [...FEATURES],

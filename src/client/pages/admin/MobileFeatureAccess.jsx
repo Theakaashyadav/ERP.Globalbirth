@@ -11,6 +11,7 @@ const featureLabels = {
   leads: ["Assigned Leads", "Call, delegate and update assigned leads"],
   alerts: ["Lead Alerts", "Follow-ups, pending attempts and lead reminders"],
   profile: ["My Profile", "View personal and employment information"]
+  ,officeWifi: ["Set Office Wi-Fi", "Allow employees to submit their current office network for admin approval"]
 };
 
 export default function MobileFeatureAccess() {

@@ -44,6 +44,7 @@
         <activity android:name=".AlertsActivity" android:exported="false" />
         <activity android:name=".LeadsActivity" android:exported="false" />
         <activity android:name=".ProfileActivity" android:exported="false" />
+        <activity android:name=".SetOfficeWifiActivity" android:exported="false" />
         <activity android:name=".UpdateActivity" android:exported="false" android:theme="@style/Theme.GlobalOneApp.UpdateDialog" />
 
         <activity

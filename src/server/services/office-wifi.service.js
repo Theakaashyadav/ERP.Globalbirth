@@ -1,5 +1,7 @@
 const crypto = require("crypto");
 const OfficeWifiPolicy = require("../models/OfficeWifiPolicy");
+const Employee = require("../models/Employee");
+const mobileFeatures = require("./mobile-feature.service");
 const { connectDatabase } = require("../db/connection");
 
 const clean = value => String(value || "").trim();
@@ -7,13 +9,18 @@ const cleanSsid = value => clean(value).replace(/^"|"$/g, "");
 const cleanBssid = value => clean(value).toLowerCase();
 
 function normalizeOffice(item = {}) {
+  const active = item.active === true;
   const office = {
     officeId: clean(item.officeId) || crypto.randomUUID(),
     name: clean(item.name),
     ssid: cleanSsid(item.ssid),
     bssid: cleanBssid(item.bssid),
     ipPrefix: clean(item.ipPrefix),
-    active: item.active !== false
+    active,
+    status: active ? "approved" : (clean(item.status).toLowerCase() === "rejected" ? "rejected" : "pending"),
+    submittedByEmployeeId: clean(item.submittedByEmployeeId),
+    submittedAt: item.submittedAt || null,
+    reviewedAt: active || clean(item.status).toLowerCase() === "rejected" ? new Date() : null
   };
   if (!office.name) throw new Error("Every office needs a name.");
   if (!office.ssid && !office.bssid && !office.ipPrefix) throw new Error(`${office.name} needs an SSID, router BSSID or IP prefix.`);
@@ -24,7 +31,7 @@ function normalizeOffice(item = {}) {
 
 function defaultOffices() {
   const ipPrefix = clean(process.env.DEFAULT_OFFICE_WIFI_IP_PREFIX || "192.168.1.");
-  return [{ officeId: "main-office", name: "Main Office", ssid: "", bssid: "", ipPrefix, active: true }];
+  return [{ officeId: "main-office", name: "Main Office", ssid: "", bssid: "", ipPrefix, active: true, status: "approved", submittedByEmployeeId: "", submittedAt: null, reviewedAt: new Date() }];
 }
 
 async function readPolicy() {
@@ -63,7 +70,33 @@ async function updateOfficeWifiSettings(payload) {
 async function getEmployeeOfficeWifiSettings() {
   await connectDatabase();
   const policy = await readPolicy();
-  return { success: true, data: { offices: (policy.offices || []).filter(office => office.active) } };
+  return { success: true, data: { offices: (policy.offices || []).filter(office => office.active && (office.status === "approved" || !office.status)) } };
+}
+
+async function submitOfficeWifi(payload) {
+  await connectDatabase();
+  const employeeId = clean(payload.employeeId);
+  const employee = await Employee.findOne({ employeeId, status: "Active" }).lean();
+  if (!employee || !(await mobileFeatures.hasEmployeeFeature(employee, "officeWifi"))) return { success: false, message: "Set Office Wi-Fi is not enabled for your role." };
+  const office = normalizeOffice({
+    officeId: crypto.randomUUID(), name: payload.name, ssid: payload.ssid,
+    bssid: payload.bssid, ipPrefix: payload.ipPrefix, active: false,
+    status: "pending", submittedByEmployeeId: employeeId, submittedAt: new Date()
+  });
+  office.active = false; office.status = "pending"; office.submittedAt = new Date(); office.reviewedAt = null;
+  const policy = await readPolicy();
+  const duplicate = (policy.offices || []).find(item =>
+    cleanSsid(item.ssid).toLowerCase() === office.ssid.toLowerCase() && cleanBssid(item.bssid) === office.bssid && clean(item.ipPrefix) === office.ipPrefix
+  );
+  if (duplicate) return { success: false, message: duplicate.active ? "This Wi-Fi is already approved." : "This Wi-Fi is already waiting for admin approval." };
+  await OfficeWifiPolicy.updateOne({ policyKey: "office-wifi" }, { $push: { offices: office } });
+  return { success: true, data: office, message: "Wi-Fi submitted. Admin approval is required before attendance can use it." };
+}
+
+async function getEmployeeWifiSubmissions(payload) {
+  await connectDatabase();
+  const policy = await readPolicy();
+  return { success: true, data: { offices: (policy.offices || []).filter(item => item.submittedByEmployeeId === clean(payload.employeeId)) } };
 }
 
 async function isActiveOffice(officeId) {
@@ -72,4 +105,4 @@ async function isActiveOffice(officeId) {
   return (policy.offices || []).some(office => office.active && office.officeId === clean(officeId));
 }
 
-module.exports = { getOfficeWifiSettings, updateOfficeWifiSettings, getEmployeeOfficeWifiSettings, isActiveOffice };
+module.exports = { getOfficeWifiSettings, updateOfficeWifiSettings, getEmployeeOfficeWifiSettings, submitOfficeWifi, getEmployeeWifiSubmissions, isActiveOffice };

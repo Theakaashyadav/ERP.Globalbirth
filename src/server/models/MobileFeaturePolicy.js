@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const rolePolicySchema = new mongoose.Schema({
   role: { type: String, required: true, enum: ["tl", "executive", "hr", "backend"] },
-  features: [{ type: String, enum: ["attendance", "leads", "profile"] }]
+  features: [{ type: String, enum: ["attendance", "leads", "alerts", "profile", "officeWifi"] }]
 }, { _id: false });
 
 const mobileFeaturePolicySchema = new mongoose.Schema({
