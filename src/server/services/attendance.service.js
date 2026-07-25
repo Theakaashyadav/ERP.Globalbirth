@@ -419,7 +419,7 @@ async function loginMobileEmployee(payload) {
     delete employee.registeredFingerprintId;
   }
 
-  return { success: true, employee: mapEmployee(employee) };
+  return { success: true, token: createEmployeeSession(employee.employeeId), employee: mapEmployee(employee) };
 }
 
 async function registerPushToken(payload) {
@@ -452,7 +452,7 @@ async function validateMobileSession(payload) {
     return { success: false, message: "Android device verification failed. Contact HR to reset the registered device." };
   }
 
-  return { success: true, employee: mapEmployee(employee) };
+  return { success: true, token: createEmployeeSession(employee.employeeId), employee: mapEmployee(employee) };
 }
 
 async function loginDashboardUser(payload) {

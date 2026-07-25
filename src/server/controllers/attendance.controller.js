@@ -52,6 +52,7 @@ const handlers = {
 
 async function handleAttendanceAction(req, res) {
   const action = String(req.body.action || "").trim();
+  const publicActions = new Set(["addEmployee", "webLoginEmployee", "mobileLoginEmployee", "validateMobileSession", "loginDashboardUser"]);
   const rolePolicies = {
     getEmployees: ["hr"], getAttendance: ["hr"], updateAttendanceRemark: ["hr"],
     updateEmployee: ["hr"], deleteEmployee: ["hr"],
@@ -70,17 +71,18 @@ async function handleAttendanceAction(req, res) {
   const employeeActions = new Set([
     "getEmployeeProfile", "getEmployeeAttendance", "saveAttendance", "getEmployeeLeads", "getTeamLeadWorkspaceLeads",
     "getLeadDetails", "getTeamExecutives", "assignLeadToExecutive", "recordLeadCall",
-    "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "getEmployeeOfficeWifiSettings", "submitOfficeWifi", "getEmployeeWifiSubmissions", "submitCallLogStats"
+    "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "getEmployeeOfficeWifiSettings", "submitOfficeWifi", "getEmployeeWifiSubmissions", "submitCallLogStats",
+    "registerPushToken"
   ]);
   if (employeeActions.has(action)) {
     const employeeId = String(
       req.body.employeeId || req.body.teamLeadId || req.body.records?.[0]?.employeeId || ""
     ).trim();
     const androidId = String(req.body.androidId || "").trim();
-    await connectDatabase();
     const browserSession = readEmployeeSession(req);
+    await connectDatabase();
     const employee = browserSession?.employeeId === employeeId
-      ? { _id: employeeId }
+      ? await Employee.findOne({ employeeId, status: "Active" }).select({ _id: 1 }).lean()
       : employeeId && androidId
       ? await Employee.findOne({ employeeId, registeredAndroidId: androidId, status: "Active" }).select({ _id: 1 }).lean()
       : null;
@@ -97,6 +99,11 @@ async function handleAttendanceAction(req, res) {
       success: false,
       message: "Unknown action."
     });
+    return;
+  }
+
+  if (!publicActions.has(action) && !allowedRoles && !employeeActions.has(action)) {
+    res.status(401).json({ success: false, message: "Authentication is required for this action." });
     return;
   }
 

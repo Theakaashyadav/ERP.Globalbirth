@@ -97,7 +97,7 @@ class LoginActivity : AppCompatActivity() {
             loginBtn.isEnabled=true;loginBtn.text="Sign In Securely"
             val employee=response?.optJSONObject("employee")
             if(!ok||employee==null){toast(message);return@runOnUiThread}
-            session.saveLogin(employee.optString("employeeId"),employee.optString("phone",phoneValue),employee.optString("fullName"),employee.optString("email"),employee.optString("department"),employee.optString("designation"),androidId)
+            session.saveLogin(employee.optString("employeeId"),employee.optString("phone",phoneValue),employee.optString("fullName"),employee.optString("email"),employee.optString("department"),employee.optString("designation"),androidId,response.optString("token"))
             openDashboard()
         }}
     }
@@ -112,7 +112,7 @@ class LoginActivity : AppCompatActivity() {
                 ApiClient.post(JSONObject().put("action","validateMobileSession").put("employeeId",session.getEmployeeId()).put("phone",session.getPhone()).put("androidId",currentAndroidId)){ok,message,response->runOnUiThread{
                     val employee=response?.optJSONObject("employee")
                     if(!ok||employee==null){session.logout();showPinMode();toast(message.ifBlank{"Account or device verification failed."});return@runOnUiThread}
-                    session.saveLogin(employee.optString("employeeId"),employee.optString("phone"),employee.optString("fullName"),employee.optString("email"),employee.optString("department"),employee.optString("designation"),currentAndroidId)
+                    session.saveLogin(employee.optString("employeeId"),employee.optString("phone"),employee.optString("fullName"),employee.optString("email"),employee.optString("department"),employee.optString("designation"),currentAndroidId,response.optString("token"))
                     openDashboard()
                 }}
             }

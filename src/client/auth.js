@@ -30,10 +30,10 @@ export function getDashboardSession() {
   }
 }
 
-function hasUsableDashboardToken(session) {
-  if (!session?.token) return false;
+function hasUsableSignedToken(token) {
+  if (!token) return false;
   try {
-    const payload = JSON.parse(atob(session.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")));
+    const payload = JSON.parse(atob(token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")));
     return Number(payload.exp || 0) > Math.floor(Date.now() / 1000);
   } catch {
     return false;
@@ -43,10 +43,11 @@ function hasUsableDashboardToken(session) {
 export function canAccessRole(role) {
   const dashboardSession = getDashboardSession();
   if (role === "employee") {
-    return dashboardSession?.role !== "admin" && Boolean(getEmployeeSession()?.employeeId);
+    const employee = getEmployeeSession();
+    return dashboardSession?.role !== "admin" && Boolean(employee?.employeeId) && hasUsableSignedToken(employee?.token);
   }
 
-  if (!hasUsableDashboardToken(dashboardSession)) return false;
+  if (!hasUsableSignedToken(dashboardSession?.token)) return false;
   if (dashboardSession?.role === "admin") return true;
 
   return Boolean(dashboardSession && (dashboardSession.allowedRole === role || dashboardSession.role === role));

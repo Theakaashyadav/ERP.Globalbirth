@@ -29,6 +29,8 @@ object ApiClient {
 
         val builder = Request.Builder().url(AppConfig.API_URL).post(body)
         if (AppConfig.API_KEY.isNotBlank()) builder.header("Authorization", "Bearer ${AppConfig.API_KEY}")
+        val employeeToken = SessionManager(GlobalOneApplication.instance).getSessionToken()
+        if (employeeToken.isNotBlank()) builder.header("X-Employee-Session", employeeToken)
         val request = builder.build()
 
         client.newCall(request).enqueue(object : Callback {

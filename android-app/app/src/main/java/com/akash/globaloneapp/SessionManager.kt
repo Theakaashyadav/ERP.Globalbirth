@@ -18,6 +18,7 @@ class SessionManager(context: Context) {
         private const val KEY_ANDROID_ID = "ANDROID_ID"
         private const val KEY_LOGIN_TIME = "LOGIN_TIME"
         private const val KEY_FEATURES = "MOBILE_FEATURES"
+        private const val KEY_SESSION_TOKEN = "EMPLOYEE_SESSION_TOKEN"
 
         private const val SESSION_LIMIT = 10 * 60 * 1000L
     }
@@ -29,7 +30,8 @@ class SessionManager(context: Context) {
         email: String = "",
         department: String = "",
         designation: String = "",
-        androidId: String
+        androidId: String,
+        sessionToken: String
     ) {
         pref.edit()
             .putBoolean(KEY_LOGIN, true)
@@ -40,6 +42,7 @@ class SessionManager(context: Context) {
             .putString(KEY_DEPARTMENT, department)
             .putString(KEY_DESIGNATION, designation)
             .putString(KEY_ANDROID_ID, androidId)
+            .putString(KEY_SESSION_TOKEN, sessionToken)
             .putLong(KEY_LOGIN_TIME, System.currentTimeMillis())
             .apply()
     }
@@ -48,6 +51,7 @@ class SessionManager(context: Context) {
         pref.edit()
             .putBoolean(KEY_LOGIN, false)
             .remove(KEY_LOGIN_TIME)
+            .remove(KEY_SESSION_TOKEN)
             .apply()
     }
 
@@ -121,6 +125,8 @@ class SessionManager(context: Context) {
     fun getAndroidId(): String {
         return pref.getString(KEY_ANDROID_ID, "") ?: ""
     }
+
+    fun getSessionToken(): String = pref.getString(KEY_SESSION_TOKEN, "") ?: ""
 
     fun saveMobileFeatures(features: Set<String>) {
         pref.edit().putStringSet(KEY_FEATURES, features).apply()
