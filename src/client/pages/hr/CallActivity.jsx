@@ -16,7 +16,7 @@ export default function CallActivity() {
   const [search, setSearch] = useState(""); const [date, setDate] = useState(getTodayISODate());
   const [request, setRequest] = useState(null); const [loading, setLoading] = useState(false);
   const timer = useRef(null); const toast = useToast();
-  useEffect(() => { AttendanceApi.getEmployees().then(result => setEmployees((result.data || []).filter(item => normalize(item.status) === "active"))).catch(error => toast.error(error.message)); return () => clearInterval(timer.current); }, []);
+  useEffect(() => { AttendanceApi.getEmployees().then(result => setEmployees((result.data || []).filter(item => normalize(item.status) === "active" && ["tl", "executive"].includes(normalize(item.designation))))).catch(error => toast.error(error.message)); return () => clearInterval(timer.current); }, []);
   const visible = useMemo(() => employees.filter(item => normalize(`${item.fullName} ${item.employeeId} ${item.department}`).includes(normalize(search))), [employees, search]);
   const allVisibleSelected = visible.length > 0 && visible.every(item => selected.includes(item.employeeId));
   function toggleAll() { const ids = visible.map(item => item.employeeId); setSelected(current => allVisibleSelected ? current.filter(id => !ids.includes(id)) : [...new Set([...current, ...ids])]); }
@@ -39,7 +39,7 @@ export default function CallActivity() {
   return <main className="screen"><div className="wide">
     <PageHeader icon={PhoneCall} title="Realtime Call Activity" subtitle="On-demand daily call totals from employee phones. Results are temporary and never stored in the database." tone="cyan" />
     <section className="callActivityLayout">
-      <aside className="panel callEmployeePicker"><div className="pickerHeader"><div><span className="eyebrow">EMPLOYEE SELECTION</span><h2>Select phones</h2></div><span className="selectionCount">{selected.length} selected</span></div>
+      <aside className="panel callEmployeePicker"><div className="pickerHeader"><div><span className="eyebrow">SALES CALL TEAM</span><h2>Select TLs or Executives</h2></div><span className="selectionCount">{selected.length} selected</span></div>
         <input className="employeeSearch" placeholder="Search employee, ID or department" value={search} onChange={event => setSearch(event.target.value)} />
         <button className="selectAllButton" onClick={toggleAll}><CheckSquare size={17} /> {allVisibleSelected ? "Clear visible" : "Select all visible"}</button>
         <div className="callEmployeeList">{visible.map(employee => <label className={selected.includes(employee.employeeId) ? "selected" : ""} key={employee.employeeId}><input type="checkbox" checked={selected.includes(employee.employeeId)} onChange={() => toggle(employee.employeeId)} /><div><b>{employee.fullName}</b><span>{employee.employeeId} · {employee.department || "No department"}</span></div><small>{employee.designation || "-"}</small></label>)}</div>

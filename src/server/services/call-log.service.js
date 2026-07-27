@@ -16,10 +16,12 @@ async function requestCallLogStats(payload) {
   await connectDatabase();
   const ids = [...new Set((Array.isArray(payload.employeeIds) ? payload.employeeIds : []).map(clean).filter(Boolean))];
   if (!ids.length) return { success: false, message: "Select at least one employee." };
-  const employees = await Employee.find({ employeeId: { $in: ids }, status: "Active" }).lean();
+  const employees = await Employee.find({ employeeId: { $in: ids }, status: "Active", designation: { $in: [/^tl$/i, /^executive$/i] } }).lean();
+  if (!employees.length) return { success: false, message: "Select at least one active TL or Executive." };
   const employeeMap = new Map(employees.map(employee => [employee.employeeId, employee]));
+  const eligibleIds = ids.filter(employeeId => employeeMap.has(employeeId));
   const requestId = crypto.randomUUID();
-  const results = ids.map(employeeId => {
+  const results = eligibleIds.map(employeeId => {
     const employee = employeeMap.get(employeeId);
     return employee ? { employeeId, name: employee.fullName, department: employee.department || "-", designation: employee.designation || "-", status: "Pending", message: employee.pushToken ? "Waiting for phone" : "Waiting for background sync" } : { employeeId, name: employeeId, department: "-", designation: "-", status: "Unavailable", message: "Active employee not found" };
   });
