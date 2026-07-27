@@ -1167,6 +1167,18 @@ async function getMarketingLeadDashboard() {
   };
 }
 
+async function clearAllLeads() {
+  await connectDatabase();
+  const before = await Lead.countDocuments({});
+  const result = await Lead.deleteMany({});
+  const after = await Lead.countDocuments({});
+  return {
+    success: after === 0,
+    data: { before, deleted: result.deletedCount, after },
+    message: after === 0 ? "All leads deleted." : "Some leads could not be deleted."
+  };
+}
+
 module.exports = {
   expireOverdueLeadAssignments,
   getEmployees,
@@ -1193,5 +1205,6 @@ module.exports = {
   recordLeadCall,
   updateLeadRemark,
   archiveEmployeeLead,
-  getMarketingLeadDashboard
+  getMarketingLeadDashboard,
+  clearAllLeads
 };
