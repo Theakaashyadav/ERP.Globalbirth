@@ -368,17 +368,20 @@ class AttendanceActivity : AppCompatActivity() {
             put("wifiPrivateIp", currentWifiIp.takeUnless { it == "-" } ?: "")
         }
 
-        ApiClient.post(data) { success, message, _ ->
+        ApiClient.post(data) { success, message, response ->
             runOnUiThread {
                 btnSubmit.text = "Mark My Attendance"
 
                 if (success) {
-                    tvSuccess.text =
-                        if (attendanceRule.isCompOffEligibleDay) {
+                    val alreadySaved = response?.optJSONObject("data")
+                        ?.optInt("alreadySavedCount", 0) ?: 0
+                    tvSuccess.text = if (alreadySaved > 0) {
+                        message.ifEmpty { "Attendance is already marked for today." }
+                    } else if (attendanceRule.isCompOffEligibleDay) {
                             "Attendance marked successfully at $time. Tuesday comp off eligible."
-                        } else {
+                    } else {
                             "Attendance marked successfully at $time."
-                        }
+                    }
 
                     tvSuccess.visibility = View.VISIBLE
                     btnSubmit.isEnabled = false

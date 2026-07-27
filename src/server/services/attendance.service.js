@@ -592,6 +592,8 @@ async function saveAttendance(payload) {
   const now = new Date();
   const indiaDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
   const indiaTime = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true }).format(now);
+  let savedCount = 0;
+  let alreadySavedCount = 0;
 
   for (const record of records) {
     const employeeId = cleanText(record.employeeId);
@@ -602,7 +604,7 @@ async function saveAttendance(payload) {
       continue;
     }
 
-    await AttendanceRecord.updateOne(
+    const result = await AttendanceRecord.updateOne(
       {
         employeeId,
         attendanceDate: date
@@ -620,10 +622,17 @@ async function saveAttendance(payload) {
         upsert: true
       }
     );
+
+    if (result.upsertedCount > 0) savedCount += 1;
+    else alreadySavedCount += 1;
   }
 
   return {
-    success: true
+    success: true,
+    data: { savedCount, alreadySavedCount, attendanceDate: indiaDate },
+    message: savedCount > 0
+      ? "Attendance saved for today."
+      : "Attendance is already marked for today."
   };
 }
 
