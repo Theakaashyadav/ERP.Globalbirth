@@ -101,7 +101,7 @@ class UpdateActivity : AppCompatActivity() {
         startActivity(Intent(this,destination).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK));finish()
     }
     private fun showLoading(heading:String,detail:String){title.text=heading;message.text=detail;progress.visibility=ProgressBar.VISIBLE;action.visibility=Button.GONE}
-    private fun showError(heading:String,detail:String){title.text=heading;message.text="$detail\n\nThis check is mandatory. Connect to the company server and retry.";progress.visibility=ProgressBar.GONE;action.visibility=Button.VISIBLE;action.text="Retry";action.setOnClickListener{checkForUpdate()}}
+    private fun showError(heading:String,detail:String){AppFeedbackReporter.lastAction=heading;AppToast.error(this,detail);title.text=heading;message.text="$detail\n\nThis check is mandatory. Connect to the company server and retry.";progress.visibility=ProgressBar.GONE;action.visibility=Button.VISIBLE;action.text="Retry";action.setOnClickListener{checkForUpdate()}}
     private fun sha256(file:File):String{val digest=MessageDigest.getInstance("SHA-256");file.inputStream().use{input->val buffer=ByteArray(8192);while(true){val count=input.read(buffer);if(count<=0)break;digest.update(buffer,0,count)}};return digest.digest().joinToString(""){"%02x".format(it)}}
     private fun dp(value:Int)=(value*resources.displayMetrics.density).toInt()
 }

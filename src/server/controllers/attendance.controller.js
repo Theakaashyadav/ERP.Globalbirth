@@ -5,6 +5,7 @@ const databaseAnalysis = require("../services/database-analysis.service");
 const dashboardCredentials = require("../services/dashboard-credential.service");
 const officeWifi = require("../services/office-wifi.service");
 const announcements = require("../services/announcement.service");
+const appFeedback = require("../services/app-feedback.service");
 const Employee = require("../models/Employee");
 const { connectDatabase } = require("../db/connection");
 const { readDashboardSession, readEmployeeSession, canAccessDashboardRole } = require("../security/dashboard-session");
@@ -57,11 +58,14 @@ const handlers = {
   ,deleteBroadcastAlert: announcements.deleteBroadcastAlert
   ,getEmployeeAlerts: announcements.getEmployeeAlerts
   ,markAlertRead: announcements.markAlertRead
+  ,submitAppFeedback: appFeedback.submitAppFeedback
+  ,getAppFeedback: appFeedback.getAppFeedback
+  ,deleteAllAppFeedback: appFeedback.deleteAllAppFeedback
 };
 
 async function handleAttendanceAction(req, res) {
   const action = String(req.body.action || "").trim();
-  const publicActions = new Set(["addEmployee", "webLoginEmployee", "mobileLoginEmployee", "validateMobileSession", "loginDashboardUser"]);
+  const publicActions = new Set(["addEmployee", "webLoginEmployee", "mobileLoginEmployee", "validateMobileSession", "loginDashboardUser", "submitAppFeedback"]);
   const rolePolicies = {
     getEmployees: ["hr"], getAttendance: ["hr"], updateAttendanceRemark: ["hr"],
     updateEmployee: ["hr"], deleteEmployee: ["hr"],
@@ -69,7 +73,7 @@ async function handleAttendanceAction(req, res) {
     requestCallLogStats: ["hr", "marketing"], getCallLogStatsRequest: ["hr", "marketing"],
     getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], clearAllLeads: ["admin"], sendTestPush: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
-    getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"],
+    getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],
     sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"], deleteBroadcastAlert: ["admin", "hr", "marketing"]
   };
   const allowedRoles = rolePolicies[action];

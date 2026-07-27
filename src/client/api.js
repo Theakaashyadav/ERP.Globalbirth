@@ -82,4 +82,6 @@ export const AttendanceApi = {
   ,sendBroadcastAlert: (subject, message, senderRole) => request("sendBroadcastAlert", { subject, message, senderRole })
   ,getBroadcastAlerts: senderRole => request("getBroadcastAlerts", { senderRole })
   ,deleteBroadcastAlert: (alertId, senderRole) => request("deleteBroadcastAlert", { alertId, senderRole })
+  ,getAppFeedback: () => request("getAppFeedback")
+  ,deleteAllAppFeedback: () => request("deleteAllAppFeedback")
 };

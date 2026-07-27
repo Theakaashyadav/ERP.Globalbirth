@@ -100,6 +100,7 @@ class LeadsActivity : AppCompatActivity() {
     }
 
     private fun showError(message: String) {
+        AppToast.error(this, message.ifBlank { "Please check the server connection." })
         root.removeAllViews()
         EmployeeUi.addCard(root, EmployeeUi.card(this, "Unable to load leads", message.ifBlank { "Please check the server connection." }, "#DC2626"))
         root.addView(EmployeeUi.button(this, "Try Again") { showLoading(); load() })

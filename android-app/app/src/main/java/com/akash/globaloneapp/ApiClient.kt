@@ -21,6 +21,7 @@ object ApiClient {
     ) {
         val authenticatedJson = JSONObject(json.toString())
         val action = authenticatedJson.optString("action")
+        if (action != "submitAppFeedback") AppFeedbackReporter.lastAction = action.ifBlank { "Unknown action" }
         val publicActions = setOf("addEmployee", "webLoginEmployee", "mobileLoginEmployee", "loginDashboardUser")
         if (action !in publicActions && !authenticatedJson.has("androidId")) {
             authenticatedJson.put("androidId", DeviceUtils.getAndroidId(GlobalOneApplication.instance))

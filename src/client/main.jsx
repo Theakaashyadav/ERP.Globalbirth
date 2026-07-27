@@ -22,6 +22,7 @@ import MobileFeatureAccess from "./pages/admin/MobileFeatureAccess.jsx";
 import DatabaseAnalysis from "./pages/admin/DatabaseAnalysis.jsx";
 import DashboardCredentials from "./pages/admin/DashboardCredentials.jsx";
 import OfficeWifiSettings from "./pages/admin/OfficeWifiSettings.jsx";
+import AppFeedback from "./pages/admin/AppFeedback.jsx";
 import MarketingDashboard from "./pages/marketing/MarketingDashboard.jsx";
 import LeadAnalysis from "./pages/marketing/LeadAnalysis.jsx";
 import MarketingHome from "./pages/marketing/MarketingHome.jsx";
@@ -63,6 +64,7 @@ createRoot(document.getElementById("root")).render(
           <Route path="/admin/database" element={protect("admin", <DatabaseAnalysis />)} />
           <Route path="/admin/credentials" element={protect("admin", <DashboardCredentials />)} />
           <Route path="/admin/office-wifi" element={protect("admin", <OfficeWifiSettings />)} />
+          <Route path="/admin/app-feedback" element={protect("admin", <AppFeedback />)} />
           <Route path="/alerts/manage" element={protect(["admin","hr","marketing"], <BroadcastAlerts />)} />
           {!isHrOnly && !isMarketingOnly && (
             <>

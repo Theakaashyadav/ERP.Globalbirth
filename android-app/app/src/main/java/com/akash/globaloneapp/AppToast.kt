@@ -55,8 +55,18 @@ object AppToast {
                     text = symbol; textSize = 16f; gravity = Gravity.CENTER; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.parseColor(accent))
                     background = GradientDrawable().apply { setColor(Color.parseColor(soft)); shape = GradientDrawable.OVAL }
                 }, LinearLayout.LayoutParams(dp(36), dp(36)).apply { marginEnd = dp(11) })
-                addView(TextView(activity).apply {
-                    text = message; textSize = 13.5f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.parseColor("#1E293B")); maxLines = 4
+                addView(LinearLayout(activity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(TextView(activity).apply {
+                        text = message; textSize = 13.5f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.parseColor("#1E293B")); maxLines = 4
+                    })
+                    if (type == Type.ERROR) addView(TextView(activity).apply {
+                        text = "Send Feedback"; textSize = 12.5f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.parseColor("#2563EB")); setPadding(0, dp(7), 0, 0)
+                        setOnClickListener { view ->
+                            view.isEnabled = false; text = "Sending..."
+                            AppFeedbackReporter.send(activity, message) { success, _ -> text = if (success) "Feedback Sent" else "Retry Send Feedback"; isEnabled = !success }
+                        }
+                    })
                 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                 addView(TextView(activity).apply {
                     text = "×"; textSize = 20f; gravity = Gravity.CENTER; setTextColor(Color.parseColor("#94A3B8")); setOnClickListener { (parent as? ViewGroup)?.removeView(this) }
@@ -66,7 +76,7 @@ object AppToast {
             card.alpha = 0f; card.translationY = -dp(18).toFloat(); card.animate().alpha(1f).translationY(0f).setDuration(220).start()
             Handler(Looper.getMainLooper()).postDelayed({
                 if (card.parent === host) card.animate().alpha(0f).translationY(-dp(12).toFloat()).setDuration(180).withEndAction { if (card.parent === host) host.removeView(card) }.start()
-            }, 3_500L)
+            }, if (type == Type.ERROR) 12_000L else 3_500L)
         }
     }
 

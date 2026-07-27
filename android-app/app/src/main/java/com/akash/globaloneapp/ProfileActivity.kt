@@ -50,6 +50,7 @@ class ProfileActivity : AppCompatActivity() {
     }
 
     private fun showError(message: String) {
+        AppToast.error(this, message.ifBlank { "Profile could not be loaded." })
         root.removeAllViews()
         EmployeeUi.addCard(root, EmployeeUi.card(this, "Unable to load profile", message, "#DC2626"))
         root.addView(EmployeeUi.button(this, "Try Again") { loadProfile() })

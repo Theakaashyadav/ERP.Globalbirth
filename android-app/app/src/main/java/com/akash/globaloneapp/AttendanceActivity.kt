@@ -419,6 +419,7 @@ class AttendanceActivity : AppCompatActivity() {
         tvError.text = "❌ $message"
         tvError.setTextColor(ContextCompat.getColor(this, android.R.color.black))
         tvError.visibility = View.VISIBLE
+        AppToast.error(this, message)
     }
 
     private fun hideMessages() {
