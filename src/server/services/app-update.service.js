@@ -7,6 +7,7 @@ const { sendMandatoryUpdate } = require("./push-notification.service");
 
 const releaseDir = path.resolve(process.cwd(), "data", "app-releases");
 const metadataPath = path.join(releaseDir, "latest.json");
+const githubApkUrl = process.env.ANDROID_APK_GITHUB_URL || "https://raw.githubusercontent.com/Theakaashyadav/ERP.Globalbirth/main/public/downloads/GlobalOne-Employee.apk";
 fs.mkdirSync(releaseDir, { recursive: true });
 
 function readLatest() {
@@ -21,21 +22,24 @@ async function publish(req, res) {
   const versionCode = Number(req.body.versionCode);
   const versionName = String(req.body.versionName || "").trim();
   const notes = String(req.body.notes || "").trim();
-  if (!req.file || !Number.isInteger(versionCode) || versionCode < 1 || !versionName) {
-    if (req.file) fs.unlink(req.file.path, () => {});
-    return res.status(400).json({ success: false, message: "APK, positive version code, and version name are required." });
+  if (!Number.isInteger(versionCode) || versionCode < 1 || !versionName) {
+    return res.status(400).json({ success: false, message: "Positive version code and version name are required." });
   }
-  const bytes = fs.readFileSync(req.file.path);
+  const sourceUrl = `${githubApkUrl}${githubApkUrl.includes("?") ? "&" : "?"}v=${versionCode}`;
+  let bytes;
+  try {
+    const response = await fetch(sourceUrl, { headers: { "User-Agent": "GlobalOne-Release-Service", "Cache-Control": "no-cache" } });
+    if (!response.ok) throw new Error(`GitHub returned HTTP ${response.status}`);
+    bytes = Buffer.from(await response.arrayBuffer());
+  } catch (error) {
+    return res.status(502).json({ success: false, message: `Could not fetch the APK from GitHub: ${error.message}` });
+  }
   if (bytes.length < 4 || bytes[0] !== 0x50 || bytes[1] !== 0x4b) {
-    fs.unlinkSync(req.file.path);
-    return res.status(400).json({ success: false, message: "Uploaded file is not a valid APK archive." });
+    return res.status(400).json({ success: false, message: "The GitHub file is not a valid APK archive." });
   }
-  const fileName = `global-one-${versionCode}.apk`;
-  const destination = path.join(releaseDir, fileName);
-  fs.renameSync(req.file.path, destination);
   const release = {
     versionCode, versionName, notes, mandatory: true, sizeBytes: bytes.length,
-    sha256: crypto.createHash("sha256").update(bytes).digest("hex"), fileName,
+    sha256: crypto.createHash("sha256").update(bytes).digest("hex"), sourceUrl,
     releasedAt: new Date().toISOString()
   };
   fs.writeFileSync(metadataPath, JSON.stringify(release, null, 2));
@@ -47,14 +51,15 @@ async function publish(req, res) {
     console.error("Mandatory update notification failed:", error.message);
     release.notifiedDevices = 0;
   }
-  res.json({ success: true, release: { ...release, fileName: undefined }, message: "Mandatory Android release published." });
+  res.json({ success: true, release, message: "Mandatory update alert sent using the GitHub APK." });
 }
 function download(req, res) {
   const release = readLatest();
   if (!release) return res.status(404).json({ success: false, message: "No Android release is available." });
-  const file = path.join(releaseDir, path.basename(release.fileName));
-  if (!fs.existsSync(file)) return res.status(404).json({ success: false, message: "Release APK file is missing." });
-  res.download(file, `GlobalOne-${release.versionName}.apk`);
+  if (release.sourceUrl) return res.redirect(302, release.sourceUrl);
+  const file = release.fileName ? path.join(releaseDir, path.basename(release.fileName)) : "";
+  if (!file || !fs.existsSync(file)) return res.status(404).json({ success: false, message: "Release APK is unavailable. Send the update alert again to use GitHub." });
+  return res.download(file, `GlobalOne-${release.versionName}.apk`);
 }
 
 module.exports = { releaseDir, latest, publish, download, readLatest };
