@@ -10,7 +10,7 @@ export default function ProtectedRoute({ role, children }) {
     };
     const sessionRole = (() => { try { return JSON.parse(localStorage.getItem("dashboardSession") || "null")?.role; } catch { return ""; } })();
     localStorage.removeItem("dashboardSession");
-    return <Navigate to={sessionRole === "admin" || role === "admin" ? "/admin-login" : (loginPaths[role] || "/admin-login")} replace />;
+    return <Navigate to={sessionRole === "admin" || role === "admin" ? "/admin/login" : (loginPaths[role] || "/admin/login")} replace />;
   }
 
   return children;

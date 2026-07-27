@@ -26,6 +26,7 @@ import MarketingDashboard from "./pages/marketing/MarketingDashboard.jsx";
 import LeadAnalysis from "./pages/marketing/LeadAnalysis.jsx";
 import MarketingHome from "./pages/marketing/MarketingHome.jsx";
 import HomePage from "./pages/HomePage.jsx";
+import AppDownloadPage from "./pages/AppDownloadPage.jsx";
 import "./styles.css";
 
 const appRole = import.meta.env.VITE_ATTENDANCE_ROLE || "combined";
@@ -50,11 +51,13 @@ createRoot(document.getElementById("root")).render(
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={isHrOnly || isMarketingOnly ? <Navigate to={fallbackPath} replace /> : <HomePage />} />
+          <Route path="/download-app" element={<AppDownloadPage />} />
           <Route path="/employee/login" element={<EmployeeLogin />} />
           <Route path="/login" element={loginElement} />
           <Route path="/hr/login" element={<DashboardLogin role="hr" />} />
           <Route path="/marketing/login" element={<DashboardLogin role="marketing" />} />
-          <Route path="/admin-login" element={<DashboardLogin role="admin" redirect={adminRedirectPath} />} />
+          <Route path="/admin/login" element={<DashboardLogin role="admin" redirect={adminRedirectPath} />} />
+          <Route path="/admin-login" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin" element={protect("admin", <AdminDashboard />)} />
           <Route path="/admin/mobile-features" element={protect("admin", <MobileFeatureAccess />)} />
           <Route path="/admin/releases" element={protect("admin", <ReleaseManager />)} />
