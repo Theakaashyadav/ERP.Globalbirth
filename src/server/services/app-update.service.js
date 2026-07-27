@@ -9,7 +9,20 @@ const { sendMandatoryUpdate } = require("./push-notification.service");
 const releaseDir = path.resolve(process.cwd(), "data", "app-releases");
 const metadataPath = path.join(releaseDir, "latest.json");
 const githubApkUrl = process.env.ANDROID_APK_GITHUB_URL || "https://raw.githubusercontent.com/Theakaashyadav/ERP.Globalbirth/main/public/downloads/GlobalOne-Employee.apk";
+const githubVersionUrl = process.env.ANDROID_VERSION_GITHUB_URL || githubApkUrl.replace(/GlobalOne-Employee\.apk(?:\?.*)?$/, "app-version.json");
 fs.mkdirSync(releaseDir, { recursive: true });
+
+async function detectGithubVersion() {
+  const response = await fetch(`${githubVersionUrl}${githubVersionUrl.includes("?") ? "&" : "?"}t=${Date.now()}`, {
+    headers: { "User-Agent": "GlobalOne-Release-Service", "Cache-Control": "no-cache" }
+  });
+  if (!response.ok) throw new Error(`GitHub version metadata returned HTTP ${response.status}`);
+  const metadata = await response.json();
+  const versionCode = Number(metadata.versionCode);
+  const versionName = String(metadata.versionName || "").trim();
+  if (!Number.isInteger(versionCode) || versionCode < 1 || !versionName) throw new Error("GitHub version metadata is invalid.");
+  return { versionCode, versionName };
+}
 
 async function readLatest() {
   try {
@@ -24,12 +37,22 @@ async function latest(req, res) {
   if (!release) return res.json({ success: true, available: false });
   res.json({ success: true, available: true, release: { ...release, fileName: undefined, downloadUrl: "/api/app-update/download" } });
 }
+async function candidate(req, res) {
+  try {
+    const data = await detectGithubVersion();
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(502).json({ success: false, message: `Could not detect the GitHub APK version: ${error.message}` });
+  }
+}
 async function publish(req, res) {
-  const versionCode = Number(req.body.versionCode);
-  const versionName = String(req.body.versionName || "").trim();
   const notes = String(req.body.notes || "").trim();
-  if (!Number.isInteger(versionCode) || versionCode < 1 || !versionName) {
-    return res.status(400).json({ success: false, message: "Positive version code and version name are required." });
+  let versionCode;
+  let versionName;
+  try {
+    ({ versionCode, versionName } = await detectGithubVersion());
+  } catch (error) {
+    return res.status(502).json({ success: false, message: `Could not detect the GitHub APK version: ${error.message}` });
   }
   const sourceUrl = `${githubApkUrl}${githubApkUrl.includes("?") ? "&" : "?"}v=${versionCode}`;
   let bytes;
@@ -69,4 +92,4 @@ async function download(req, res) {
   return res.download(file, `GlobalOne-${release.versionName}.apk`);
 }
 
-module.exports = { releaseDir, latest, publish, download, readLatest };
+module.exports = { releaseDir, latest, candidate, publish, download, readLatest };
