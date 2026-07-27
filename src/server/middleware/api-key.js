@@ -1,4 +1,4 @@
-const { clientApiKey, adminApiKey } = require("../config");
+const { clientApiKey, androidAppApiKey, adminApiKey } = require("../config");
 
 function getBearerOrApiKey(req) {
   const header = req.get("authorization") || "";
@@ -17,7 +17,7 @@ function requireClientApiKey(req, res, next) {
     return;
   }
 
-  if (getBearerOrApiKey(req) === clientApiKey) {
+  if ([clientApiKey, androidAppApiKey].filter(Boolean).includes(getBearerOrApiKey(req))) {
     next();
     return;
   }

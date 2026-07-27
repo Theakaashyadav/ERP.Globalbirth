@@ -1,4 +1,5 @@
 const clientApiKey = process.env.CLIENT_API_KEY || process.env.API_KEY || "";
+const androidAppApiKey = "globalone-android-client-2026-v1";
 const dashboardUsers = {
   admin: {
     username: process.env.ADMIN_USERNAME || "admin",
@@ -34,6 +35,7 @@ function getClientConfig() {
 
 module.exports = {
   clientApiKey,
+  androidAppApiKey,
   adminApiKey: process.env.ADMIN_API_KEY || "",
   dashboardUsers,
   getClientConfig
