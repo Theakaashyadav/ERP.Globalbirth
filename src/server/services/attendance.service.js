@@ -584,7 +584,7 @@ async function getEmployeeProfile(payload) {
 async function saveAttendance(payload) {
   await connectDatabase();
 
-  if (cleanText(payload.androidId) && !(await officeWifi.isActiveOffice(payload.officeId))) {
+  if (cleanText(payload.androidId) && !(await officeWifi.verifyActiveOfficeNetwork(payload.officeId, { ssid: payload.wifiSsid, bssid: payload.wifiBssid, privateIp: payload.wifiPrivateIp }))) {
     return { success: false, message: "This office Wi-Fi is no longer approved. Refresh the attendance page." };
   }
 

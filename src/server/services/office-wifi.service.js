@@ -108,4 +108,17 @@ async function isActiveOffice(officeId) {
   return (policy.offices || []).some(office => office.active && office.officeId === clean(officeId));
 }
 
-module.exports = { getOfficeWifiSettings, updateOfficeWifiSettings, getEmployeeOfficeWifiSettings, submitOfficeWifi, getEmployeeWifiSubmissions, isActiveOffice };
+async function verifyActiveOfficeNetwork(officeId, network = {}) {
+  await connectDatabase();
+  const policy = await readPolicy();
+  const office = (policy.offices || []).find(item => item.active && item.officeId === clean(officeId));
+  if (!office) return false;
+  const ssid = cleanSsid(network.ssid).toLowerCase(), bssid = cleanBssid(network.bssid), privateIp = clean(network.privateIp);
+  if (!ssid && !bssid && !privateIp) return true;
+  const ssidMatches = Boolean(cleanSsid(office.ssid)) && ssid === cleanSsid(office.ssid).toLowerCase();
+  const bssidMatches = Boolean(cleanBssid(office.bssid)) && bssid === cleanBssid(office.bssid);
+  const networkMatches = Boolean(clean(office.ipPrefix)) && privateIp.startsWith(clean(office.ipPrefix));
+  return bssidMatches || (ssidMatches && (!clean(office.ipPrefix) || networkMatches)) || (!cleanSsid(office.ssid) && networkMatches);
+}
+
+module.exports = { getOfficeWifiSettings, updateOfficeWifiSettings, getEmployeeOfficeWifiSettings, submitOfficeWifi, getEmployeeWifiSubmissions, isActiveOffice, verifyActiveOfficeNetwork };
