@@ -11,8 +11,9 @@ const features = [
 export default function AppDownloadPage() {
   const [release, setRelease] = useState(null);
   useEffect(() => { fetch("/api/app-update/latest").then(response => response.json()).then(data => { if (data.available) setRelease(data.release); }).catch(() => {}); }, []);
-  const version = release?.versionName || "1.19.0";
+  const version = release?.versionName || "1.20.1";
   const size = release?.sizeBytes ? `${(release.sizeBytes / 1048576).toFixed(1)} MB` : "17.7 MB";
+  const apkUrl = "/downloads/GlobalOne-Employee.apk?v=26";
 
   return <main className="appDownloadPage">
     <nav className="downloadNav">
@@ -25,7 +26,7 @@ export default function AppDownloadPage() {
         <span className="downloadEyebrow"><Sparkles size={15}/> GLOBAL ONE FOR ANDROID</span>
         <h1>Your workday,<br/><em>connected.</em></h1>
         <p>Attendance, assigned leads, important alerts and your employee profile—securely available wherever your work takes you.</p>
-        <a className="downloadPrimary" href="/downloads/GlobalOne-Employee.apk" download>
+        <a className="downloadPrimary" href={apkUrl} download>
           <span className="downloadPrimaryIcon"><Download size={24}/></span>
           <span><b>Download Android App</b><small>Version {version} · {size} · APK</small></span>
         </a>
@@ -59,7 +60,7 @@ export default function AppDownloadPage() {
       </ol>
     </section>
 
-    <section className="downloadCta"><div><Smartphone size={30}/><span><b>Global One Employee App</b><small>Official Android release · Version {version}</small></span></div><a href="/downloads/GlobalOne-Employee.apk" download><Download size={19}/> Download now</a></section>
+    <section className="downloadCta"><div><Smartphone size={30}/><span><b>Global One Employee App</b><small>Official Android release · Version {version}</small></span></div><a href={apkUrl} download><Download size={19}/> Download now</a></section>
     <footer className="downloadFooter"><div className="downloadBrand"><span>G</span><div><b>Global Birth</b><small>Employee Workspace</small></div></div><p>Secure internal employee application · Android 11 or newer</p></footer>
   </main>;
 }
