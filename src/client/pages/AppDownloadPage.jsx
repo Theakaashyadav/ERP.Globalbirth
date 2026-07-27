@@ -11,9 +11,9 @@ const features = [
 export default function AppDownloadPage() {
   const [release, setRelease] = useState(null);
   useEffect(() => { fetch("/api/app-update/latest").then(response => response.json()).then(data => { if (data.available) setRelease(data.release); }).catch(() => {}); }, []);
-  const version = release?.versionName || "1.20.2";
+  const version = release?.versionName || "1.20.3";
   const size = release?.sizeBytes ? `${(release.sizeBytes / 1048576).toFixed(1)} MB` : "17.7 MB";
-  const apkUrl = "/downloads/GlobalOne-Employee.apk?v=27";
+  const apkUrl = "/downloads/GlobalOne-Employee.apk?v=28";
 
   return <main className="appDownloadPage">
     <nav className="downloadNav">
