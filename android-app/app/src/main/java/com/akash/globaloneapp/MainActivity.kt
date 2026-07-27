@@ -60,6 +60,7 @@ class MainActivity : ComponentActivity() {
         )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions += Manifest.permission.POST_NOTIFICATIONS
+            permissions += Manifest.permission.NEARBY_WIFI_DEVICES
         }
         runtimePermissionLauncher.launch(permissions.toTypedArray())
     }

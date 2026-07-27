@@ -15,6 +15,7 @@ function normalizeOffice(item = {}) {
     name: clean(item.name),
     ssid: cleanSsid(item.ssid),
     bssid: cleanBssid(item.bssid),
+    privateIp: clean(item.privateIp),
     ipPrefix: clean(item.ipPrefix),
     active,
     status: active ? "approved" : (clean(item.status).toLowerCase() === "rejected" ? "rejected" : "pending"),
@@ -31,7 +32,7 @@ function normalizeOffice(item = {}) {
 
 function defaultOffices() {
   const ipPrefix = clean(process.env.DEFAULT_OFFICE_WIFI_IP_PREFIX || "192.168.1.");
-  return [{ officeId: "main-office", name: "Main Office", ssid: "", bssid: "", ipPrefix, active: true, status: "approved", submittedByEmployeeId: "", submittedAt: null, reviewedAt: new Date() }];
+  return [{ officeId: "main-office", name: "Main Office", ssid: "", bssid: "", privateIp: "", ipPrefix, active: true, status: "approved", submittedByEmployeeId: "", submittedAt: null, reviewedAt: new Date() }];
 }
 
 async function readPolicy() {
@@ -78,9 +79,11 @@ async function submitOfficeWifi(payload) {
   const employeeId = clean(payload.employeeId);
   const employee = await Employee.findOne({ employeeId, status: "Active" }).lean();
   if (!employee || !(await mobileFeatures.hasEmployeeFeature(employee, "officeWifi"))) return { success: false, message: "Set Office Wi-Fi is not enabled for your role." };
+  if (!cleanSsid(payload.ssid) || !cleanBssid(payload.bssid) || !clean(payload.privateIp) || !clean(payload.ipPrefix)) return { success: false, message: "Complete Wi-Fi name, BSSID and private IP details are required." };
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(clean(payload.privateIp))) return { success: false, message: "The captured private IPv4 address is invalid." };
   const office = normalizeOffice({
     officeId: crypto.randomUUID(), name: payload.name, ssid: payload.ssid,
-    bssid: payload.bssid, ipPrefix: payload.ipPrefix, active: false,
+    bssid: payload.bssid, privateIp: payload.privateIp, ipPrefix: payload.ipPrefix, active: false,
     status: "pending", submittedByEmployeeId: employeeId, submittedAt: new Date()
   });
   office.active = false; office.status = "pending"; office.submittedAt = new Date(); office.reviewedAt = null;

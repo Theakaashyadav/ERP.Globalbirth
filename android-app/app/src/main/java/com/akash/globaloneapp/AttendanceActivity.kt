@@ -135,19 +135,20 @@ class AttendanceActivity : AppCompatActivity() {
     }
 
     private fun hasLocationPermission(): Boolean {
-        return ContextCompat.checkSelfPermission(
+        val locationGranted = ContextCompat.checkSelfPermission(
             this,
             Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
+        val nearbyGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || ContextCompat.checkSelfPermission(this, Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED
+        return locationGranted && nearbyGranted
     }
 
     private fun requestLocationPermission() {
+        val permissions = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) permissions += Manifest.permission.NEARBY_WIFI_DEVICES
         ActivityCompat.requestPermissions(
             this,
-            arrayOf(
-                Manifest.permission.ACCESS_FINE_LOCATION,
-                Manifest.permission.ACCESS_COARSE_LOCATION
-            ),
+            permissions.toTypedArray(),
             101
         )
     }
@@ -214,36 +215,12 @@ class AttendanceActivity : AppCompatActivity() {
                 return
             }
 
-            val wifiManager =
-                applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-
-            val oldWifiInfo = wifiManager.connectionInfo
-            var newWifiInfo: WifiInfo? = null
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val transportInfo = capabilities.transportInfo
-                if (transportInfo is WifiInfo) {
-                    newWifiInfo = transportInfo
-                }
-            }
-
-            val oldSsid = cleanWifiName(oldWifiInfo.ssid ?: "-")
-            val newSsid = cleanWifiName(newWifiInfo?.ssid ?: "-")
-
-            val finalWifiInfo =
-                if (isValidSsid(oldSsid)) {
-                    oldWifiInfo
-                } else if (isValidSsid(newSsid)) {
-                    newWifiInfo
-                } else {
-                    oldWifiInfo
-                }
-
-            currentWifiName = cleanWifiName(finalWifiInfo?.ssid ?: "-")
-            currentWifiBssid = (finalWifiInfo?.bssid ?: "-").trim().lowercase(Locale.ENGLISH)
-            currentWifiIp = Formatter.formatIpAddress(oldWifiInfo.ipAddress).trim()
-            currentLinkSpeed = "${finalWifiInfo?.linkSpeed ?: 0} Mbps"
-            currentFrequency = "${finalWifiInfo?.frequency ?: 0} MHz"
+            val snapshot = WifiNetworkReader.read(this)
+            currentWifiName = snapshot.ssid.ifBlank { "-" }
+            currentWifiBssid = snapshot.bssid.ifBlank { "-" }
+            currentWifiIp = snapshot.privateIp.ifBlank { "-" }
+            currentLinkSpeed = "-"
+            currentFrequency = "-"
 
             matchedOffice = approvedOffices.firstOrNull { office ->
                 val checks = mutableListOf<Boolean>()

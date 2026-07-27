@@ -5,6 +5,7 @@ const officeSchema = new mongoose.Schema({
   name: { type: String, required: true },
   ssid: { type: String, default: "" },
   bssid: { type: String, default: "" },
+  privateIp: { type: String, default: "" },
   ipPrefix: { type: String, default: "" },
   active: { type: Boolean, default: false },
   status: { type: String, enum: ["pending", "approved", "rejected"], default: "pending" },
