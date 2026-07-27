@@ -26,7 +26,6 @@ import MarketingDashboard from "./pages/marketing/MarketingDashboard.jsx";
 import LeadAnalysis from "./pages/marketing/LeadAnalysis.jsx";
 import MarketingHome from "./pages/marketing/MarketingHome.jsx";
 import HomePage from "./pages/HomePage.jsx";
-import AppDownloadPage from "./pages/AppDownloadPage.jsx";
 import BroadcastAlerts from "./pages/alerts/BroadcastAlerts.jsx";
 import "./styles.css";
 
@@ -52,7 +51,6 @@ createRoot(document.getElementById("root")).render(
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={isHrOnly || isMarketingOnly ? <Navigate to={fallbackPath} replace /> : <HomePage />} />
-          <Route path="/download-app" element={<AppDownloadPage />} />
           <Route path="/employee/login" element={<EmployeeLogin />} />
           <Route path="/login" element={loginElement} />
           <Route path="/hr/login" element={<DashboardLogin role="hr" />} />
