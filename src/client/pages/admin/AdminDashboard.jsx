@@ -62,16 +62,16 @@ export default function AdminDashboard() {
         </div>
 
         <section className="adminWelcome panel">
-          <div><span className="eyebrow">MANAGEMENT OVERVIEW</span><h2>Choose a dashboard</h2><p>Open any management area without entering another password.</p></div>
-          <BarChart3 size={54} />
+          <div><span className="eyebrow">9 SECURE MODULES</span><h2>Everything under control</h2><p>Select a workspace to manage your organization.</p></div>
+          <BarChart3 size={38} />
         </section>
 
         <section className="adminDashboardGrid">
           {dashboards.map(({ title, description, path, icon: Icon, tone }) => (
             <Link className={`adminDashboardCard ${tone}`} to={path} key={path}>
-              <span className="adminCardIcon"><Icon size={28} /></span>
-              <div><h2>{title}</h2><p>{description}</p></div>
-              <span className="adminOpenLabel">Open dashboard →</span>
+              <div className="adminCardTop"><span className="adminCardIcon"><Icon size={22} /></span><span className="adminCardArrow">→</span></div>
+              <div className="adminCardCopy"><h2>{title}</h2><p>{description}</p></div>
+              <span className="adminOpenLabel">Open module</span>
             </Link>
           ))}
         </section>
