@@ -4,7 +4,7 @@ import PageHeader from "../../components/PageHeader.jsx";
 import { logout } from "../../auth.js";
 
 const modules = [
-  { title: "Employee Alerts", description: "Send marketing notices and important messages to every active employee.", path: "/alerts/manage", icon: BellRing, tone: "orange", label: "Open alert center" },
+  { title: "Employee Alerts", description: "Send marketing notices and important messages to every active employee.", path: "/alerts/manage?sender=marketing", icon: BellRing, tone: "orange", label: "Open alert center" },
   {
     title: "Assign Leads",
     description: "Create new leads, assign them to Sales TLs, monitor team capacity and reassign expired leads.",

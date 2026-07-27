@@ -1,5 +1,8 @@
 package com.akash.globaloneapp
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -15,6 +18,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationCompat
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.OkHttpClient
@@ -74,12 +78,33 @@ class DashboardActivity : AppCompatActivity() {
             ApiClient.post(JSONObject().put("action", "getEmployeeAlerts").put("employeeId", session.getEmployeeId())) { alertOk, _, alertResponse ->
                 val announcements = alertResponse?.optJSONArray("data")
                 var unreadAnnouncements = 0
-                if (alertOk && announcements != null) for (index in 0 until announcements.length()) if (!announcements.optJSONObject(index).optBoolean("isRead")) unreadAnnouncements++
+                var newestUnread: JSONObject? = null
+                if (alertOk && announcements != null) for (index in 0 until announcements.length()) {
+                    val item = announcements.optJSONObject(index) ?: continue
+                    if (!item.optBoolean("isRead")) { unreadAnnouncements++; if (newestUnread == null) newestUnread = item }
+                }
                 leadAlertCount = alerts + unreadAnnouncements
                 BadgeStore.set(this, assignedLeadCount, leadAlertCount)
-                runOnUiThread { if (!isFinishing && !isDestroyed) renderDashboard(session) }
+                runOnUiThread { if (!isFinishing && !isDestroyed) { renderDashboard(session); newestUnread?.let { showAlertNotificationIfNeeded(it) } } }
             }
         }
+    }
+
+    private fun showAlertNotificationIfNeeded(item: JSONObject) {
+        val id = item.optString("id"); if (id.isBlank()) return
+        val preferences = getSharedPreferences("common_alert_delivery", MODE_PRIVATE)
+        if (preferences.getString("lastAlertId", "") == id) return
+        preferences.edit().putString("lastAlertId", id).apply()
+        val title = item.optString("subject").ifBlank { "New Alert" }
+        val body = item.optString("message").ifBlank { "Open Alerts to read the message." }
+        val senderRole = item.optString("sentByRole").uppercase()
+        val senderName = item.optString("sentByName")
+        val sender = if (senderName.isBlank()) senderRole else "$senderRole • $senderName"
+        val details = Intent(this, AlertDetailsActivity::class.java).putExtra("subject", title).putExtra("message", body).putExtra("sender", sender).putExtra("dateTime", "New alert").addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        val pending = PendingIntent.getActivity(this, id.hashCode(), details, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(NotificationChannel("company_alerts_v2", "Employee alerts", NotificationManager.IMPORTANCE_HIGH).apply { description = "Important messages from Admin, HR and Marketing"; enableVibration(true) })
+        manager.notify(id.hashCode(), NotificationCompat.Builder(this, "company_alerts_v2").setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_MAX).setCategory(NotificationCompat.CATEGORY_MESSAGE).setDefaults(NotificationCompat.DEFAULT_ALL).setAutoCancel(true).setNumber(BadgeStore.total(this)).setContentIntent(pending).build())
     }
 
     private fun loadFeatureAccess(session: SessionManager) {

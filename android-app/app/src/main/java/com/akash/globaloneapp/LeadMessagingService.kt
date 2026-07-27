@@ -32,7 +32,9 @@ class LeadMessagingService : FirebaseMessagingService() {
         }
         if (message.data["type"] == "common_alert") {
             BadgeStore.incrementAlerts(this)
-            showCommonAlert(message.data["title"] ?: "New Alert", message.data["body"] ?: "Open Alerts to read the message.")
+            val alertId = message.data["alertId"].orEmpty()
+            if (alertId.isNotBlank()) getSharedPreferences("common_alert_delivery", MODE_PRIVATE).edit().putString("lastAlertId", alertId).apply()
+            showCommonAlert(alertId, message.data["title"] ?: "New Alert", message.data["body"] ?: "Open Alerts to read the message.", message.data["sender"] ?: "COMPANY")
             return
         }
         val title = message.notification?.title ?: message.data["title"] ?: "New lead assigned"
@@ -74,7 +76,7 @@ class LeadMessagingService : FirebaseMessagingService() {
             .setStyle(NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_MAX).setOngoing(true).setAutoCancel(false).setContentIntent(pendingIntent).build()
         manager.notify(9101, notification)
     }
-    private fun showCommonAlert(title:String,body:String){val channelId="company_alerts";val manager=getSystemService(NotificationManager::class.java);manager.createNotificationChannel(NotificationChannel(channelId,"Company alerts",NotificationManager.IMPORTANCE_HIGH));val pending=PendingIntent.getActivity(this,9201,Intent(this,AlertsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE);val notification=NotificationCompat.Builder(this,channelId).setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_MAX).setAutoCancel(true).setContentIntent(pending).build();manager.notify((System.currentTimeMillis()%Int.MAX_VALUE).toInt(),notification)}
+    private fun showCommonAlert(alertId:String,title:String,body:String,sender:String){val channelId="company_alerts_v2";val manager=getSystemService(NotificationManager::class.java);manager.createNotificationChannel(NotificationChannel(channelId,"Employee alerts",NotificationManager.IMPORTANCE_HIGH).apply{description="Important messages from Admin, HR and Marketing";enableVibration(true)});val intent=Intent(this,AlertDetailsActivity::class.java).putExtra("subject",title).putExtra("message",body).putExtra("sender",sender).putExtra("dateTime","New alert").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP);val pending=PendingIntent.getActivity(this,if(alertId.isBlank())9201 else alertId.hashCode(),intent,PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE);val notification=NotificationCompat.Builder(this,channelId).setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_MAX).setCategory(NotificationCompat.CATEGORY_MESSAGE).setDefaults(NotificationCompat.DEFAULT_ALL).setAutoCancel(true).setNumber(BadgeStore.total(this)).setContentIntent(pending).build();manager.notify(if(alertId.isBlank())(System.currentTimeMillis()%Int.MAX_VALUE).toInt() else alertId.hashCode(),notification)}
 
     private fun submitCallLogStats(requestId: String, requestedDate: String) {
         val session = SessionManager(this)

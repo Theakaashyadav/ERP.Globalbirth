@@ -99,7 +99,7 @@ async function sendCommonAlert(tokens, alert) {
   for (let index = 0; index < validTokens.length; index += 500) {
     const response = await client.sendEachForMulticast({
       tokens: validTokens.slice(index, index + 500),
-      data: { type: "common_alert", alertId: String(alert._id), title: String(alert.subject), body: String(alert.message).slice(0, 500) },
+      data: { type: "common_alert", alertId: String(alert._id), title: String(alert.subject), body: String(alert.message).slice(0, 500), sender: String(alert.sentByRole || "company").toUpperCase() },
       android: { priority: "high" }
     });
     sent += response.successCount;

@@ -43,6 +43,7 @@
 
         <activity android:name=".LeadDetailsActivity" android:exported="false" />
         <activity android:name=".AlertsActivity" android:exported="false" />
+        <activity android:name=".AlertDetailsActivity" android:exported="false" />
         <activity android:name=".LeadsActivity" android:exported="false" />
         <activity android:name=".ProfileActivity" android:exported="false" />
         <activity android:name=".SetOfficeWifiActivity" android:exported="false" />

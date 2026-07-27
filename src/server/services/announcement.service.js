@@ -9,9 +9,12 @@ async function sendBroadcastAlert(payload) {
   const subject = clean(payload.subject), message = clean(payload.message), session = payload._dashboardSession || {};
   if (!subject || !message) return { success: false, message: "Subject and full message are required." };
   if (subject.length > 150 || message.length > 5000) return { success: false, message: "Alert content is too long." };
-  const role = clean(session.role).toLowerCase();
+  const authenticatedRole = clean(session.role).toLowerCase();
+  const requestedRole = clean(payload.senderRole).toLowerCase();
+  const role = authenticatedRole === "admin" && ["admin", "hr", "marketing"].includes(requestedRole) ? requestedRole : authenticatedRole;
   if (!["admin", "hr", "marketing"].includes(role)) return { success: false, message: "Dashboard authorization failed." };
-  const item = await Announcement.create({ subject, message, sentByRole: role, sentByName: clean(session.name || session.username) });
+  if (authenticatedRole !== "admin" && requestedRole && requestedRole !== authenticatedRole) return { success: false, message: "Sender role does not match this dashboard session." };
+  const item = await Announcement.create({ subject, message, sentByRole: role, sentByName: role === authenticatedRole ? clean(session.name || session.username) : "" });
   const employees = await Employee.find({ status: "Active", pushToken: { $nin: [null, ""] } }).select("pushToken").lean();
   let notifiedDevices = 0;
   try {

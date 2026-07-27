@@ -79,6 +79,6 @@ export const AttendanceApi = {
   ,updateDashboardCredential: (role, username, password) => request("updateDashboardCredential", { role, username, password })
   ,getOfficeWifiSettings: () => request("getOfficeWifiSettings")
   ,updateOfficeWifiSettings: offices => request("updateOfficeWifiSettings", { offices })
-  ,sendBroadcastAlert: (subject, message) => request("sendBroadcastAlert", { subject, message })
+  ,sendBroadcastAlert: (subject, message, senderRole) => request("sendBroadcastAlert", { subject, message, senderRole })
   ,getBroadcastAlerts: () => request("getBroadcastAlerts")
 };
