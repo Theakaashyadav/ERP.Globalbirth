@@ -3,6 +3,7 @@ const path = require("path");
 
 let messaging = null;
 let initializationAttempted = false;
+let initializationError = "";
 
 function initializeMessaging() {
   if (initializationAttempted) return messaging;
@@ -23,15 +24,33 @@ function initializeMessaging() {
       }
     }
     if (!credential) {
+      initializationError = "No Firebase service-account environment variable or file was found.";
       console.warn("Firebase push disabled: configure FIREBASE_SERVICE_ACCOUNT_JSON or FIREBASE_SERVICE_ACCOUNT_PATH.");
       return null;
     }
     const app = getApps()[0] || initializeApp({ credential: credential || applicationDefault() });
     messaging = getMessaging(app);
   } catch (error) {
+    initializationError = error.message || "Firebase initialization failed.";
     console.error("Firebase push initialization failed:", error.message);
   }
   return messaging;
+}
+
+function firebaseConfigurationStatus() {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
+  let parsed = null;
+  let parseError = "";
+  if (raw) try { parsed = JSON.parse(raw); } catch (error) { parseError = error.message || "Invalid JSON."; }
+  return {
+    environmentVariablePresent: Boolean(raw),
+    jsonValid: Boolean(parsed),
+    hasProjectId: Boolean(parsed?.project_id),
+    hasClientEmail: Boolean(parsed?.client_email),
+    hasPrivateKey: Boolean(parsed?.private_key),
+    initialized: Boolean(messaging),
+    error: initializationError || parseError
+  };
 }
 
 async function sendLeadAssignment(employee, lead, assignedBy) {
@@ -110,16 +129,16 @@ async function sendCommonAlert(tokens, alert) {
 async function sendEmployeeTestPush(employee) {
   if (!employee?.pushToken) return { sent: false, reason: "This employee device has no registered push token. Open and log in to the app once." };
   const client = initializeMessaging();
-  if (!client) return { sent: false, reason: "Firebase Admin is not configured on the server." };
+  if (!client) return { sent: false, reason: "Firebase Admin is not configured on the server.", firebase: firebaseConfigurationStatus() };
   try {
     await client.send({
       token: employee.pushToken,
       data: { type: "common_alert", alertId: `test-${Date.now()}`, title: "Test Notification", body: "Push notifications are working on this device.", sender: "ADMIN" },
       android: { priority: "high" }
     });
-    return { sent: true, reason: "Firebase accepted the notification." };
+    return { sent: true, reason: "Firebase accepted the notification.", firebase: firebaseConfigurationStatus() };
   } catch (error) {
-    return { sent: false, reason: error.message || "Firebase rejected the notification." };
+    return { sent: false, reason: error.message || "Firebase rejected the notification.", firebase: firebaseConfigurationStatus() };
   }
 }
 
@@ -139,4 +158,4 @@ async function verifyPhoneIdToken(idToken, expectedPhone) {
   }
 }
 
-module.exports = { sendLeadAssignment, sendCallLogRequest, sendMandatoryUpdate, sendCommonAlert, sendEmployeeTestPush, verifyPhoneIdToken };
+module.exports = { sendLeadAssignment, sendCallLogRequest, sendMandatoryUpdate, sendCommonAlert, sendEmployeeTestPush, firebaseConfigurationStatus, verifyPhoneIdToken };

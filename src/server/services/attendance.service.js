@@ -1195,7 +1195,7 @@ async function sendTestPush(payload) {
   const employee = await Employee.findOne({ employeeId, status: "Active" }).select({ employeeId: 1, fullName: 1, pushToken: 1 }).lean();
   if (!employee) return { success: false, message: `Active employee ${employeeId} was not found.` };
   const result = await sendEmployeeTestPush(employee);
-  return { success: result.sent, data: { employeeId, employeeName: employee.fullName || "", sent: result.sent }, message: result.reason };
+  return { success: result.sent, data: { employeeId, employeeName: employee.fullName || "", sent: result.sent, firebase: result.firebase }, message: result.reason };
 }
 
 module.exports = {
