@@ -10,9 +10,6 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.os.PowerManager
-import android.provider.Settings
-import android.net.Uri
 import android.view.View
 import android.view.ViewGroup
 import android.view.Gravity
@@ -48,8 +45,6 @@ class DashboardActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val session = SessionManager(this)
         PushNotifications.activate(this, session)
-        BackgroundSyncService.start(this)
-        requestBackgroundPriority()
         LeadAlertScheduler.schedule(this)
         assignedLeadCount = BadgeStore.leadCount(this)
         leadAlertCount = BadgeStore.alertCount(this)
@@ -180,19 +175,10 @@ class DashboardActivity : AppCompatActivity() {
         if (session.hasMobileFeature("alerts")) tiles.add(modernActionCard(R.drawable.ic_nav_alerts, "Alerts", "Company messages, updates and lead reminders", "#D97706", "#FFFBEB", leadAlertCount) { startActivity(Intent(this, AlertsActivity::class.java)) })
         if (session.hasMobileFeature("profile")) tiles.add(modernActionCard(R.drawable.ic_dashboard_profile, "My Profile", "View your personal and employment information", "#2563EB", "#EFF6FF") { startActivity(Intent(this, ProfileActivity::class.java)) })
         val signOut = modernActionCard(R.drawable.ic_dashboard_logout, "Sign Out", "Securely end this employee session", "#DC2626", "#FEF2F2") {
-            BackgroundSyncService.stop(this); session.logout(); startActivity(Intent(this, LoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)); finish()
+            session.logout(); startActivity(Intent(this, LoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)); finish()
         }
         tiles.add(signOut)
         tiles.forEach { EmployeeUi.addCard(root, it) }
-    }
-
-    private fun requestBackgroundPriority() {
-        val power = getSystemService(PowerManager::class.java)
-        val preferences = getSharedPreferences("background_sync", MODE_PRIVATE)
-        if (!power.isIgnoringBatteryOptimizations(packageName) && !preferences.getBoolean("batteryPrompted", false)) {
-            preferences.edit().putBoolean("batteryPrompted", true).apply()
-            try { startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName"))) } catch (_: Exception) { }
-        }
     }
 
     private fun welcomeCard(session: SessionManager, name: String, department: String): View {
