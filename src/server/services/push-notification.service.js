@@ -6,6 +6,8 @@ let initializationAttempted = false;
 let initializationError = "";
 
 function serviceAccountJson() {
+  const encoded = String(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || "").trim();
+  if (encoded) return Buffer.from(encoded, "base64").toString("utf8").trim();
   let raw = String(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "").trim();
   if (raw.startsWith("\\{")) raw = raw.slice(1);
   if (raw.endsWith("\\}")) raw = `${raw.slice(0, -2)}}`;
@@ -19,7 +21,7 @@ function initializeMessaging() {
     const { applicationDefault, cert, getApps, initializeApp } = require("firebase-admin/app");
     const { getMessaging } = require("firebase-admin/messaging");
     let credential = null;
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 || process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
       credential = cert(JSON.parse(serviceAccountJson()));
     } else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
       const credentialPath = path.resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
@@ -50,6 +52,7 @@ function firebaseConfigurationStatus() {
   let parseError = "";
   if (raw) try { parsed = JSON.parse(raw); } catch (error) { parseError = error.message || "Invalid JSON."; }
   return {
+    base64EnvironmentVariablePresent: Boolean(process.env.FIREBASE_SERVICE_ACCOUNT_BASE64),
     environmentVariablePresent: Boolean(raw),
     jsonValid: Boolean(parsed),
     hasProjectId: Boolean(parsed?.project_id),
