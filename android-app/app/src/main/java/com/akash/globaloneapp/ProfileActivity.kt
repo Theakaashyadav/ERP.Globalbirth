@@ -82,6 +82,7 @@ class ProfileActivity : AppCompatActivity() {
         )))
 
         root.addView(EmployeeUi.button(this, "Sign Out Securely", "#DC2626") {
+            BackgroundSyncService.stop(this)
             session.logout()
             startActivity(Intent(this, LoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
             finish()

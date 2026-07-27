@@ -92,5 +92,5 @@ class LeadAlertReceiver : BroadcastReceiver() {
 }
 
 class LeadAlertBootReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context?, intent: Intent?) { context?.let(LeadAlertScheduler::schedule) }
+    override fun onReceive(context: Context?, intent: Intent?) { context?.let { LeadAlertScheduler.schedule(it); BackgroundSyncService.start(it) } }
 }

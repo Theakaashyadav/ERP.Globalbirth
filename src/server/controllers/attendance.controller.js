@@ -41,6 +41,7 @@ const handlers = {
   ,requestCallLogStats: callLogs.requestCallLogStats
   ,submitCallLogStats: callLogs.submitCallLogStats
   ,getCallLogStatsRequest: callLogs.getCallLogStatsRequest
+  ,getPendingCallLogRequests: callLogs.getPendingCallLogRequests
   ,getDatabaseAnalysis: databaseAnalysis.getDatabaseAnalysis
   ,getDashboardCredentials: dashboardCredentials.getDashboardCredentials
   ,updateDashboardCredential: dashboardCredentials.updateDashboardCredential
@@ -79,7 +80,7 @@ async function handleAttendanceAction(req, res) {
     "getEmployeeProfile", "getEmployeeAttendance", "saveAttendance", "getEmployeeLeads", "getTeamLeadWorkspaceLeads",
     "getLeadDetails", "getTeamExecutives", "assignLeadToExecutive", "recordLeadCall",
     "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "getEmployeeOfficeWifiSettings", "submitOfficeWifi", "getEmployeeWifiSubmissions", "submitCallLogStats",
-    "registerPushToken", "getEmployeeAlerts", "markAlertRead"
+    "registerPushToken", "getEmployeeAlerts", "markAlertRead", "getPendingCallLogRequests"
   ]);
   if (employeeActions.has(action)) {
     const employeeId = String(

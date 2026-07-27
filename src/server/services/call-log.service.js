@@ -4,7 +4,7 @@ const { connectDatabase } = require("../db/connection");
 const { sendCallLogRequest } = require("./push-notification.service");
 
 const requests = new Map();
-const REQUEST_TTL_MS = 2 * 60 * 1000;
+const REQUEST_TTL_MS = 5 * 60 * 1000;
 
 function clean(value) { return String(value || "").trim(); }
 function today() { return new Date().toISOString().slice(0, 10); }
@@ -34,17 +34,15 @@ async function requestCallLogStats(payload) {
   for (const employee of employees) {
     request.results.set(employee.employeeId, {
       employeeId: employee.employeeId, name: employee.fullName, department: employee.department || "-",
-      designation: employee.designation || "-", status: employee.pushToken ? "Pending" : "Unavailable",
-      message: employee.pushToken ? "Waiting for phone" : "Phone has not registered for realtime requests",
+      designation: employee.designation || "-", status: "Pending",
+      message: employee.pushToken ? "Waiting for phone" : "Waiting for background sync",
       totalCalls: 0, outgoingCalls: 0, incomingCalls: 0, missedCalls: 0, totalDurationSeconds: 0
     });
   }
   for (const id of ids) if (!request.results.has(id)) request.results.set(id, { employeeId: id, name: id, department: "-", designation: "-", status: "Unavailable", message: "Active employee not found", totalCalls: 0, outgoingCalls: 0, incomingCalls: 0, missedCalls: 0, totalDurationSeconds: 0 });
   requests.set(requestId, request);
   await Promise.all(employees.filter(item => item.pushToken).map(async employee => {
-    if (!(await sendCallLogRequest(employee, requestId, request.date))) {
-      const row = request.results.get(employee.employeeId); row.status = "Unavailable"; row.message = "Phone could not be reached";
-    }
+    if (!(await sendCallLogRequest(employee, requestId, request.date))) request.results.get(employee.employeeId).message = "Waiting for background sync";
   }));
   return { success: true, data: serialize(request) };
 }
@@ -75,4 +73,14 @@ async function getCallLogStatsRequest(payload) {
   return request ? { success: true, data: serialize(request) } : { success: false, message: "Realtime request expired or was not found." };
 }
 
-module.exports = { requestCallLogStats, submitCallLogStats, getCallLogStatsRequest };
+async function getPendingCallLogRequests(payload) {
+  cleanup(); const employeeId = clean(payload.employeeId);
+  const pending = [];
+  for (const request of requests.values()) {
+    const row = request.results.get(employeeId);
+    if (row?.status === "Pending") pending.push({ requestId: request.requestId, date: request.date, expiresAt: new Date(request.createdAt + REQUEST_TTL_MS).toISOString() });
+  }
+  return { success: true, data: pending };
+}
+
+module.exports = { requestCallLogStats, submitCallLogStats, getCallLogStatsRequest, getPendingCallLogRequests };
