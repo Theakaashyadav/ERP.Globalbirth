@@ -35,7 +35,8 @@ const handlers = {
   updateLeadRemark: attendance.updateLeadRemark,
   archiveEmployeeLead: attendance.archiveEmployeeLead,
   getMarketingLeadDashboard: attendance.getMarketingLeadDashboard,
-  clearAllLeads: attendance.clearAllLeads
+  clearAllLeads: attendance.clearAllLeads,
+  sendTestPush: attendance.sendTestPush
   ,getMobileFeatureSettings: mobileFeatures.getMobileFeatureSettings
   ,updateMobileFeatureSettings: mobileFeatures.updateMobileFeatureSettings
   ,getEmployeeMobileFeatures: mobileFeatures.getEmployeeMobileFeatures
@@ -66,7 +67,7 @@ async function handleAttendanceAction(req, res) {
     updateEmployee: ["hr"], deleteEmployee: ["hr"],
     assignLead: ["marketing"], reassignReturnedLead: ["marketing"], getMarketingLeadDashboard: ["marketing"],
     requestCallLogStats: ["hr", "marketing"], getCallLogStatsRequest: ["hr", "marketing"],
-    getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], clearAllLeads: ["admin"],
+    getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], clearAllLeads: ["admin"], sendTestPush: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
     getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"],
     sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"], deleteBroadcastAlert: ["admin", "hr", "marketing"]

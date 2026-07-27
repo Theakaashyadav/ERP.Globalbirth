@@ -6,7 +6,7 @@ const { connectDatabase } = require("../db/connection");
 const { createDashboardSession, createEmployeeSession } = require("../security/dashboard-session");
 const dashboardCredentials = require("./dashboard-credential.service");
 const officeWifi = require("./office-wifi.service");
-const { sendLeadAssignment } = require("./push-notification.service");
+const { sendLeadAssignment, sendEmployeeTestPush } = require("./push-notification.service");
 const { hasEmployeeFeature } = require("./mobile-feature.service");
 
 const DAILY_LEAD_CALL_TARGET = 3;
@@ -1188,6 +1188,16 @@ async function clearAllLeads() {
   };
 }
 
+async function sendTestPush(payload) {
+  await connectDatabase();
+  const rawId = cleanText(payload.employeeId).toUpperCase();
+  const employeeId = rawId.startsWith("EMP") ? rawId : `EMP${rawId}`;
+  const employee = await Employee.findOne({ employeeId, status: "Active" }).select({ employeeId: 1, fullName: 1, pushToken: 1 }).lean();
+  if (!employee) return { success: false, message: `Active employee ${employeeId} was not found.` };
+  const result = await sendEmployeeTestPush(employee);
+  return { success: result.sent, data: { employeeId, employeeName: employee.fullName || "", sent: result.sent }, message: result.reason };
+}
+
 module.exports = {
   expireOverdueLeadAssignments,
   getEmployees,
@@ -1215,5 +1225,6 @@ module.exports = {
   updateLeadRemark,
   archiveEmployeeLead,
   getMarketingLeadDashboard,
-  clearAllLeads
+  clearAllLeads,
+  sendTestPush
 };

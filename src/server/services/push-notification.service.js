@@ -107,6 +107,22 @@ async function sendCommonAlert(tokens, alert) {
   return sent;
 }
 
+async function sendEmployeeTestPush(employee) {
+  if (!employee?.pushToken) return { sent: false, reason: "This employee device has no registered push token. Open and log in to the app once." };
+  const client = initializeMessaging();
+  if (!client) return { sent: false, reason: "Firebase Admin is not configured on the server." };
+  try {
+    await client.send({
+      token: employee.pushToken,
+      data: { type: "common_alert", alertId: `test-${Date.now()}`, title: "Test Notification", body: "Push notifications are working on this device.", sender: "ADMIN" },
+      android: { priority: "high" }
+    });
+    return { sent: true, reason: "Firebase accepted the notification." };
+  } catch (error) {
+    return { sent: false, reason: error.message || "Firebase rejected the notification." };
+  }
+}
+
 async function verifyPhoneIdToken(idToken, expectedPhone) {
   if (!idToken || !expectedPhone) return false;
   const client = initializeMessaging();
@@ -123,4 +139,4 @@ async function verifyPhoneIdToken(idToken, expectedPhone) {
   }
 }
 
-module.exports = { sendLeadAssignment, sendCallLogRequest, sendMandatoryUpdate, sendCommonAlert, verifyPhoneIdToken };
+module.exports = { sendLeadAssignment, sendCallLogRequest, sendMandatoryUpdate, sendCommonAlert, sendEmployeeTestPush, verifyPhoneIdToken };
