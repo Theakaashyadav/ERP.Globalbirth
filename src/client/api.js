@@ -80,5 +80,6 @@ export const AttendanceApi = {
   ,getOfficeWifiSettings: () => request("getOfficeWifiSettings")
   ,updateOfficeWifiSettings: offices => request("updateOfficeWifiSettings", { offices })
   ,sendBroadcastAlert: (subject, message, senderRole) => request("sendBroadcastAlert", { subject, message, senderRole })
-  ,getBroadcastAlerts: () => request("getBroadcastAlerts")
+  ,getBroadcastAlerts: senderRole => request("getBroadcastAlerts", { senderRole })
+  ,deleteBroadcastAlert: (alertId, senderRole) => request("deleteBroadcastAlert", { alertId, senderRole })
 };

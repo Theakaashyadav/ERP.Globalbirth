@@ -35,6 +35,12 @@ class DashboardActivity : AppCompatActivity() {
     private var leadAlertCount = 0
     private var featureAccessLoaded = false
     private var featureAccessRequest = 0
+    private val alertPoller = object : Runnable {
+        override fun run() {
+            if (!isFinishing && !isDestroyed) loadLeadBadgeCounts(SessionManager(this@DashboardActivity))
+            updateHandler.postDelayed(this, 15_000L)
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val session = SessionManager(this)
@@ -58,13 +64,19 @@ class DashboardActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         loadFeatureAccess(SessionManager(this))
-        loadLeadBadgeCounts(SessionManager(this))
+        updateHandler.removeCallbacks(alertPoller)
+        alertPoller.run()
         if (!updateCheckScheduled) {
             updateCheckScheduled = true
             updateHandler.postDelayed({
                 if (!isFinishing && !isDestroyed) checkMandatoryUpdate()
             }, 5_000L)
         }
+    }
+
+    override fun onPause() {
+        updateHandler.removeCallbacks(alertPoller)
+        super.onPause()
     }
 
     private fun loadLeadBadgeCounts(session: SessionManager) {

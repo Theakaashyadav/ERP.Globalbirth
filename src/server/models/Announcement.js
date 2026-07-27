@@ -7,4 +7,5 @@ const announcementSchema = new mongoose.Schema({
   readByEmployeeIds: { type: [String], default: [] }
 }, { timestamps: true });
 announcementSchema.index({ createdAt: -1 });
+announcementSchema.index({ createdAt: 1 }, { expireAfterSeconds: 172800 });
 module.exports = mongoose.models.Announcement || mongoose.model("Announcement", announcementSchema);

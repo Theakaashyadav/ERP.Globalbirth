@@ -51,6 +51,7 @@ const handlers = {
   ,getEmployeeWifiSubmissions: officeWifi.getEmployeeWifiSubmissions
   ,sendBroadcastAlert: announcements.sendBroadcastAlert
   ,getBroadcastAlerts: announcements.getBroadcastAlerts
+  ,deleteBroadcastAlert: announcements.deleteBroadcastAlert
   ,getEmployeeAlerts: announcements.getEmployeeAlerts
   ,markAlertRead: announcements.markAlertRead
 };
@@ -66,7 +67,7 @@ async function handleAttendanceAction(req, res) {
     getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
     getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"],
-    sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"]
+    sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"], deleteBroadcastAlert: ["admin", "hr", "marketing"]
   };
   const allowedRoles = rolePolicies[action];
   if (allowedRoles && !canAccessDashboardRole(readDashboardSession(req), allowedRoles)) {
