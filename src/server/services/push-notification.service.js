@@ -91,6 +91,22 @@ async function sendMandatoryUpdate(tokens, release) {
   return sent;
 }
 
+async function sendCommonAlert(tokens, alert) {
+  const validTokens = [...new Set((tokens || []).filter(Boolean))];
+  if (!validTokens.length) return 0;
+  const client = initializeMessaging(); if (!client) return 0;
+  let sent = 0;
+  for (let index = 0; index < validTokens.length; index += 500) {
+    const response = await client.sendEachForMulticast({
+      tokens: validTokens.slice(index, index + 500),
+      data: { type: "common_alert", alertId: String(alert._id), title: String(alert.subject), body: String(alert.message).slice(0, 500) },
+      android: { priority: "high" }
+    });
+    sent += response.successCount;
+  }
+  return sent;
+}
+
 async function verifyPhoneIdToken(idToken, expectedPhone) {
   if (!idToken || !expectedPhone) return false;
   const client = initializeMessaging();
@@ -107,4 +123,4 @@ async function verifyPhoneIdToken(idToken, expectedPhone) {
   }
 }
 
-module.exports = { sendLeadAssignment, sendCallLogRequest, sendMandatoryUpdate, verifyPhoneIdToken };
+module.exports = { sendLeadAssignment, sendCallLogRequest, sendMandatoryUpdate, sendCommonAlert, verifyPhoneIdToken };

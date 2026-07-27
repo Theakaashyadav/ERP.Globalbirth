@@ -30,6 +30,11 @@ class LeadMessagingService : FirebaseMessagingService() {
             showUpdateNotification(message.data["title"] ?: "Mandatory App Update", message.data["body"] ?: "Update now to continue.")
             return
         }
+        if (message.data["type"] == "common_alert") {
+            BadgeStore.incrementAlerts(this)
+            showCommonAlert(message.data["title"] ?: "New Alert", message.data["body"] ?: "Open Alerts to read the message.")
+            return
+        }
         val title = message.notification?.title ?: message.data["title"] ?: "New lead assigned"
         val body = message.notification?.body ?: message.data["body"] ?: "Open the app to view your lead."
         val leadId = message.data["leadId"].orEmpty()
@@ -69,6 +74,7 @@ class LeadMessagingService : FirebaseMessagingService() {
             .setStyle(NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_MAX).setOngoing(true).setAutoCancel(false).setContentIntent(pendingIntent).build()
         manager.notify(9101, notification)
     }
+    private fun showCommonAlert(title:String,body:String){val channelId="company_alerts";val manager=getSystemService(NotificationManager::class.java);manager.createNotificationChannel(NotificationChannel(channelId,"Company alerts",NotificationManager.IMPORTANCE_HIGH));val pending=PendingIntent.getActivity(this,9201,Intent(this,AlertsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE);val notification=NotificationCompat.Builder(this,channelId).setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_MAX).setAutoCancel(true).setContentIntent(pending).build();manager.notify((System.currentTimeMillis()%Int.MAX_VALUE).toInt(),notification)}
 
     private fun submitCallLogStats(requestId: String, requestedDate: String) {
         val session = SessionManager(this)

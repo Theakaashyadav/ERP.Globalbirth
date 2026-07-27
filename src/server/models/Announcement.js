@@ -1,0 +1,10 @@
+const mongoose = require("mongoose");
+const announcementSchema = new mongoose.Schema({
+  subject: { type: String, required: true, trim: true, maxlength: 150 },
+  message: { type: String, required: true, trim: true, maxlength: 5000 },
+  sentByRole: { type: String, required: true, enum: ["admin", "hr", "marketing"] },
+  sentByName: { type: String, default: "" },
+  readByEmployeeIds: { type: [String], default: [] }
+}, { timestamps: true });
+announcementSchema.index({ createdAt: -1 });
+module.exports = mongoose.models.Announcement || mongoose.model("Announcement", announcementSchema);

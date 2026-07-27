@@ -13,7 +13,7 @@ function employeeToken() {
 }
 
 async function request(action, payload = {}) {
-  const employeeActions = new Set(["getEmployeeProfile", "getEmployeeAttendance", "saveAttendance", "getEmployeeLeads", "getTeamLeadWorkspaceLeads", "getLeadDetails", "getTeamExecutives", "assignLeadToExecutive", "recordLeadCall", "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "getEmployeeOfficeWifiSettings", "submitOfficeWifi", "getEmployeeWifiSubmissions", "submitCallLogStats"]);
+  const employeeActions = new Set(["getEmployeeProfile", "getEmployeeAttendance", "saveAttendance", "getEmployeeLeads", "getTeamLeadWorkspaceLeads", "getLeadDetails", "getTeamExecutives", "assignLeadToExecutive", "recordLeadCall", "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "getEmployeeOfficeWifiSettings", "submitOfficeWifi", "getEmployeeWifiSubmissions", "getEmployeeAlerts", "markAlertRead", "submitCallLogStats"]);
   if (employeeActions.has(action) && !payload.androidId) {
     payload = { ...payload, androidId: localStorage.getItem("backupDeviceId") || "" };
   }
@@ -79,4 +79,6 @@ export const AttendanceApi = {
   ,updateDashboardCredential: (role, username, password) => request("updateDashboardCredential", { role, username, password })
   ,getOfficeWifiSettings: () => request("getOfficeWifiSettings")
   ,updateOfficeWifiSettings: offices => request("updateOfficeWifiSettings", { offices })
+  ,sendBroadcastAlert: (subject, message) => request("sendBroadcastAlert", { subject, message })
+  ,getBroadcastAlerts: () => request("getBroadcastAlerts")
 };

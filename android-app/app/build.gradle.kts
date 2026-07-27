@@ -13,8 +13,8 @@ android {
         applicationId = "com.akash.globaloneapp"
         minSdk = 30
         targetSdk = 36
-        versionCode = 20
-        versionName = "1.15.0"
+        versionCode = 21
+        versionName = "1.16.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val attendanceApiUrl = project.findProperty("ATTENDANCE_API_URL") ?: System.getenv("ATTENDANCE_API_URL") ?: "https://mediumslateblue-goose-217733.hostingersite.com/api/attendance"

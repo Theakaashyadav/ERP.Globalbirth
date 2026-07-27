@@ -27,6 +27,7 @@ import LeadAnalysis from "./pages/marketing/LeadAnalysis.jsx";
 import MarketingHome from "./pages/marketing/MarketingHome.jsx";
 import HomePage from "./pages/HomePage.jsx";
 import AppDownloadPage from "./pages/AppDownloadPage.jsx";
+import BroadcastAlerts from "./pages/alerts/BroadcastAlerts.jsx";
 import "./styles.css";
 
 const appRole = import.meta.env.VITE_ATTENDANCE_ROLE || "combined";
@@ -64,6 +65,7 @@ createRoot(document.getElementById("root")).render(
           <Route path="/admin/database" element={protect("admin", <DatabaseAnalysis />)} />
           <Route path="/admin/credentials" element={protect("admin", <DashboardCredentials />)} />
           <Route path="/admin/office-wifi" element={protect("admin", <OfficeWifiSettings />)} />
+          <Route path="/alerts/manage" element={protect(["admin","hr","marketing"], <BroadcastAlerts />)} />
           {!isHrOnly && !isMarketingOnly && (
             <>
               <Route path="/employee/register" element={<EmployeeRegister />} />

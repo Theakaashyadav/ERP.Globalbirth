@@ -18,6 +18,7 @@ object BadgeStore {
     }
 
     fun incrementLeads(context: Context) = set(context, leadCount(context) + 1, alertCount(context))
+    fun incrementAlerts(context: Context) = set(context, leadCount(context), alertCount(context) + 1)
 
     fun pendingFirstCallCount(leads: JSONArray): Int {
         var count = 0

@@ -1,71 +1,31 @@
 package com.akash.globaloneapp
-
+import android.app.AlertDialog
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
 import android.view.ViewGroup
-import android.widget.LinearLayout
-import android.widget.ProgressBar
-import android.widget.TextView
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import org.json.JSONObject
+import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
-class AlertsActivity : AppCompatActivity() {
-    private lateinit var root: LinearLayout
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        root = EmployeeUi.screen(this, "Lead Alerts", "Follow-ups and mandatory call reminders", EmployeeUi.NAV_ALERTS, true)
-        showLoading()
-    }
-
-    override fun onResume() { super.onResume(); loadAlerts() }
-
-    private fun showLoading() {
-        root.removeAllViews()
-        EmployeeUi.addCard(root, LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(20), dp(30), dp(20), dp(30)); background = rounded("#FFFFFF", 22, "#E2E8F0")
-            addView(ProgressBar(this@AlertsActivity), LinearLayout.LayoutParams(dp(42), dp(42)))
-            addView(label("Checking today’s lead alerts", 15f, "#475569", true).apply { setPadding(0, dp(12), 0, 0) })
-        })
-    }
-
-    private fun loadAlerts() {
-        val session = SessionManager(this)
-        ApiClient.post(JSONObject().put("action", "getEmployeeLeads").put("employeeId", session.getEmployeeId())) { ok, message, response -> runOnUiThread {
-            root.removeAllViews()
-            if (!ok) { EmployeeUi.addCard(root, EmployeeUi.card(this, "Unable to load alerts", message, "#DC2626")); return@runOnUiThread }
-            val alerts = mutableListOf<LeadAlert>()
-            val leads = response?.optJSONArray("data")
-            if (leads != null) for (index in 0 until leads.length()) LeadAlertFactory.fromLead(leads.optJSONObject(index) ?: continue).let(alerts::addAll)
-            BadgeStore.set(this, if (leads == null) 0 else BadgeStore.pendingFirstCallCount(leads), alerts.size)
-            EmployeeUi.refreshBadges(this)
-            root.addView(summaryCard(alerts.size))
-            root.addView(EmployeeUi.section(this, "TODAY’S ALERTS"))
-            if (alerts.isEmpty()) EmployeeUi.addCard(root, EmployeeUi.card(this, "You’re all caught up", "No follow-ups or mandatory calls are pending right now.", "#059669"))
-            alerts.forEach { alert -> EmployeeUi.addCard(root, alertCard(alert)) }
-            LeadAlertScheduler.schedule(this)
-        }}
-    }
-
-    private fun summaryCard(count: Int) = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(20)); background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor("#7C3AED"), Color.parseColor("#2563EB"))).apply { cornerRadius = dp(24).toFloat() }
-        addView(label(count.toString(), 30f, "#FFFFFF", true))
-        addView(label(if (count == 1) "alert requires attention" else "alerts require attention", 13f, "#E0E7FF"))
-        addView(label("Notifications run daily at 12 PM, 3 PM and 6 PM", 12f, "#DBEAFE").apply { setPadding(0, dp(8), 0, 0) })
-    }
-
-    private fun alertCard(alert: LeadAlert) = LinearLayout(this).apply {
-        orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(16), dp(18), dp(16)); background = rounded("#FFFFFF", 20, if (alert.urgent) "#F59E0B" else "#CBD5E1"); elevation = dp(2).toFloat(); isClickable = true
-        addView(label(alert.title, 16f, "#102A43", true))
-        addView(label(alert.message, 13f, "#64748B").apply { setPadding(0, dp(6), 0, 0) })
-        addView(label("Open lead details  ›", 12.5f, "#2563EB", true).apply { setPadding(0, dp(10), 0, 0) })
-        setOnClickListener { startActivity(android.content.Intent(this@AlertsActivity, LeadDetailsActivity::class.java).putExtra("leadId", alert.leadId)) }
-    }
-
-    private fun label(value: String, size: Float, color: String, bold: Boolean = false) = TextView(this).apply { text = value; textSize = size; setTextColor(Color.parseColor(color)); if (bold) typeface = Typeface.DEFAULT_BOLD }
-    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
-    private fun rounded(color: String, radius: Int, stroke: String? = null) = GradientDrawable().apply { setColor(Color.parseColor(color)); cornerRadius = dp(radius).toFloat(); if (stroke != null) setStroke(dp(1), Color.parseColor(stroke)) }
+class AlertsActivity:AppCompatActivity(){
+ private lateinit var root:LinearLayout;private val alerts=mutableListOf<InboxAlert>();private var showNew=true
+ data class InboxAlert(val id:String,val subject:String,val message:String,val sender:String,val dateTime:String,var isRead:Boolean,val leadId:String="")
+ override fun onCreate(state:Bundle?){super.onCreate(state);root=EmployeeUi.screen(this,"Alerts","Company messages, lead reminders and updates",EmployeeUi.NAV_ALERTS,true);showLoading()}
+ override fun onResume(){super.onResume();loadAlerts()}
+ private fun showLoading(){root.removeAllViews();EmployeeUi.addCard(root,LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;gravity=Gravity.CENTER;setPadding(dp(20),dp(30),dp(20),dp(30));background=rounded("#FFFFFF",22,"#E2E8F0");addView(ProgressBar(this@AlertsActivity),LinearLayout.LayoutParams(dp(42),dp(42)));addView(label("Loading your alerts",15f,"#475569",true).apply{setPadding(0,dp(12),0,0)})})}
+ private fun loadAlerts(){val session=SessionManager(this);alerts.clear();ApiClient.post(JSONObject().put("action","getEmployeeAlerts").put("employeeId",session.getEmployeeId())){ok,message,response->if(!ok){runOnUiThread{failure(message)};return@post};val items=response?.optJSONArray("data");if(items!=null)for(i in 0 until items.length()){val x=items.optJSONObject(i)?:continue;alerts+=InboxAlert(x.optString("id"),x.optString("subject"),x.optString("message"),sender(x),date(x.optString("createdAt")),x.optBoolean("isRead"))};if(session.hasMobileFeature("leads"))loadLeads(session)else runOnUiThread{render()}}}
+ private fun loadLeads(session:SessionManager){ApiClient.post(JSONObject().put("action","getEmployeeLeads").put("employeeId",session.getEmployeeId())){ok,_,response->val leads=response?.optJSONArray("data");if(ok&&leads!=null)for(i in 0 until leads.length()){val lead=leads.optJSONObject(i)?:continue;LeadAlertFactory.fromLead(lead).forEach{x->alerts+=InboxAlert("lead-${x.leadId}-${x.title}",x.title,x.message,"LEAD SYSTEM","Today",false,x.leadId)}};BadgeStore.set(this,if(leads==null)0 else BadgeStore.pendingFirstCallCount(leads),alerts.count{!it.isRead});runOnUiThread{EmployeeUi.refreshBadges(this);render()}}}
+ private fun render(){root.removeAllViews();val unread=alerts.count{!it.isRead};root.addView(summary(unread,alerts.size));root.addView(LinearLayout(this).apply{orientation=LinearLayout.HORIZONTAL;addView(tab("New ($unread)",showNew){showNew=true;render()},LinearLayout.LayoutParams(0,dp(50),1f).apply{marginEnd=dp(6)});addView(tab("Previous (${alerts.size-unread})",!showNew){showNew=false;render()},LinearLayout.LayoutParams(0,dp(50),1f).apply{marginStart=dp(6)})},LinearLayout.LayoutParams(-1,dp(50)).apply{bottomMargin=dp(15)});val visible=alerts.filter{if(showNew)!it.isRead else it.isRead};if(visible.isEmpty())EmployeeUi.addCard(root,EmployeeUi.card(this,if(showNew)"No new alerts" else "No previous alerts",if(showNew)"You are all caught up." else "Messages you open will appear here.","#059669"));visible.forEach{EmployeeUi.addCard(root,card(it))};LeadAlertScheduler.schedule(this)}
+ private fun summary(unread:Int,total:Int)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(20),dp(20),dp(20),dp(20));background=GradientDrawable(GradientDrawable.Orientation.TL_BR,intArrayOf(Color.parseColor("#7C3AED"),Color.parseColor("#2563EB"))).apply{cornerRadius=dp(24).toFloat()};addView(label(unread.toString(),30f,"#FFFFFF",true));addView(label("new alerts · $total total",13f,"#E0E7FF"));addView(label("Admin, HR, Marketing and lead reminders",12f,"#DBEAFE").apply{setPadding(0,dp(8),0,0)})}
+ private fun tab(value:String,selected:Boolean,click:()->Unit)=Button(this).apply{text=value;isAllCaps=false;typeface=Typeface.DEFAULT_BOLD;setTextColor(Color.parseColor(if(selected)"#FFFFFF" else "#475569"));background=rounded(if(selected)"#2563EB" else "#FFFFFF",16,if(selected)null else "#CBD5E1");setOnClickListener{click()}}
+ private fun card(x:InboxAlert)=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(dp(18),dp(16),dp(18),dp(16));background=rounded("#FFFFFF",20,if(x.leadId.isNotBlank())"#F59E0B" else "#CBD5E1");elevation=dp(2).toFloat();addView(label(x.subject,16f,"#102A43",true));addView(label("Sent by ${x.sender} · ${x.dateTime}",11.5f,"#7C3AED",true).apply{setPadding(0,dp(5),0,0)});addView(label(x.message,13f,"#64748B").apply{setPadding(0,dp(7),0,0);maxLines=2});addView(label("Open full alert  ›",12.5f,"#2563EB",true).apply{setPadding(0,dp(10),0,0)});setOnClickListener{open(x)}}
+ private fun open(x:InboxAlert){if(x.leadId.isNotBlank()){startActivity(Intent(this,LeadDetailsActivity::class.java).putExtra("leadId",x.leadId));return};AlertDialog.Builder(this).setTitle(x.subject).setMessage("Sent by ${x.sender}\n${x.dateTime}\n\n${x.message}").setPositiveButton("Done",null).show();if(!x.isRead){x.isRead=true;val s=SessionManager(this);ApiClient.post(JSONObject().put("action","markAlertRead").put("employeeId",s.getEmployeeId()).put("alertId",x.id)){_,_,_->};BadgeStore.set(this,BadgeStore.leadCount(this),alerts.count{!it.isRead});EmployeeUi.refreshBadges(this);render()}}
+ private fun sender(x:JSONObject)=x.optString("sentByRole").uppercase(Locale.ENGLISH)+x.optString("sentByName").takeIf{it.isNotBlank()}?.let{" · $it"}.orEmpty();private fun date(v:String)=try{OffsetDateTime.parse(v).format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"))}catch(_:Exception){v};private fun failure(v:String){root.removeAllViews();EmployeeUi.addCard(root,EmployeeUi.card(this,"Unable to load alerts",v,"#DC2626"))};private fun label(v:String,s:Float,c:String,b:Boolean=false)=TextView(this).apply{text=v;textSize=s;setTextColor(Color.parseColor(c));if(b)typeface=Typeface.DEFAULT_BOLD};private fun dp(v:Int)=(v*resources.displayMetrics.density).toInt();private fun rounded(c:String,r:Int,stroke:String?=null)=GradientDrawable().apply{setColor(Color.parseColor(c));cornerRadius=dp(r).toFloat();if(stroke!=null)setStroke(dp(1),Color.parseColor(stroke))}
 }

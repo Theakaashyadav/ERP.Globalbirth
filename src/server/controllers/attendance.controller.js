@@ -4,6 +4,7 @@ const mobileFeatures = require("../services/mobile-feature.service");
 const databaseAnalysis = require("../services/database-analysis.service");
 const dashboardCredentials = require("../services/dashboard-credential.service");
 const officeWifi = require("../services/office-wifi.service");
+const announcements = require("../services/announcement.service");
 const Employee = require("../models/Employee");
 const { connectDatabase } = require("../db/connection");
 const { readDashboardSession, readEmployeeSession, canAccessDashboardRole } = require("../security/dashboard-session");
@@ -48,6 +49,10 @@ const handlers = {
   ,getEmployeeOfficeWifiSettings: officeWifi.getEmployeeOfficeWifiSettings
   ,submitOfficeWifi: officeWifi.submitOfficeWifi
   ,getEmployeeWifiSubmissions: officeWifi.getEmployeeWifiSubmissions
+  ,sendBroadcastAlert: announcements.sendBroadcastAlert
+  ,getBroadcastAlerts: announcements.getBroadcastAlerts
+  ,getEmployeeAlerts: announcements.getEmployeeAlerts
+  ,markAlertRead: announcements.markAlertRead
 };
 
 async function handleAttendanceAction(req, res) {
@@ -60,7 +65,8 @@ async function handleAttendanceAction(req, res) {
     requestCallLogStats: ["hr", "marketing"], getCallLogStatsRequest: ["hr", "marketing"],
     getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
-    getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"]
+    getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"],
+    sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"]
   };
   const allowedRoles = rolePolicies[action];
   if (allowedRoles && !canAccessDashboardRole(readDashboardSession(req), allowedRoles)) {
@@ -72,7 +78,7 @@ async function handleAttendanceAction(req, res) {
     "getEmployeeProfile", "getEmployeeAttendance", "saveAttendance", "getEmployeeLeads", "getTeamLeadWorkspaceLeads",
     "getLeadDetails", "getTeamExecutives", "assignLeadToExecutive", "recordLeadCall",
     "updateLeadRemark", "archiveEmployeeLead", "getEmployeeMobileFeatures", "getEmployeeOfficeWifiSettings", "submitOfficeWifi", "getEmployeeWifiSubmissions", "submitCallLogStats",
-    "registerPushToken"
+    "registerPushToken", "getEmployeeAlerts", "markAlertRead"
   ]);
   if (employeeActions.has(action)) {
     const employeeId = String(
@@ -107,7 +113,7 @@ async function handleAttendanceAction(req, res) {
     return;
   }
 
-  const result = await handler(req.body);
+  const result = await handler({ ...req.body, _dashboardSession: readDashboardSession(req) });
   res.json(result);
 }
 

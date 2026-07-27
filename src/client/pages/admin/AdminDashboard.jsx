@@ -1,9 +1,10 @@
 import { Link, useNavigate } from "react-router-dom";
-import { BarChart3, Database, KeyRound, LogOut, Megaphone, Rocket, Settings2, ShieldCheck, Users, Wifi } from "lucide-react";
+import { BarChart3, BellRing, Database, KeyRound, LogOut, Megaphone, Rocket, Settings2, ShieldCheck, Users, Wifi } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 import { logout } from "../../auth.js";
 
 const dashboards = [
+  { title: "Employee Alerts", description: "Send company-wide alerts and review previous messages.", path: "/alerts/manage", icon: BellRing, tone: "orange" },
   { title: "Office Wi-Fi Access", description: "Configure approved Wi-Fi devices for attendance across multiple offices.", path: "/admin/office-wifi", icon: Wifi, tone: "green" },
   { title: "Dashboard Credentials", description: "Reset Admin, HR and Marketing login IDs and passwords securely.", path: "/admin/credentials", icon: KeyRound, tone: "purple" },
   {

@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BarChart3, FileText, LayoutDashboard, PhoneCall, UsersRound } from "lucide-react";
+import { BarChart3, BellRing, FileText, LayoutDashboard, PhoneCall, UsersRound } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 
 export default function HrDashboard() {
@@ -8,6 +8,7 @@ export default function HrDashboard() {
       <div className="wide">
         <PageHeader icon={LayoutDashboard} title="Employee Management System" subtitle="Manage attendance, employees, reports and salary details from one dashboard." />
         <section className="grid">
+          <Link className="actionCard orange" to="/alerts/manage"><div className="iconBox"><BellRing size={28}/></div><h2>Employee Alerts</h2><p className="muted">Send HR announcements to every active employee app.</p></Link>
           <Link className="actionCard" to="/hr/reports">
             <div className="iconBox"><BarChart3 size={28} /></div>
             <h2>Attendance Reports</h2>

@@ -70,9 +70,15 @@ class DashboardActivity : AppCompatActivity() {
             val leads = response?.optJSONArray("data") ?: return@post
             var alerts = 0
             for (index in 0 until leads.length()) alerts += LeadAlertFactory.fromLead(leads.optJSONObject(index) ?: continue).size
-            assignedLeadCount = BadgeStore.pendingFirstCallCount(leads); leadAlertCount = alerts
-            BadgeStore.set(this, assignedLeadCount, leadAlertCount)
-            runOnUiThread { if (!isFinishing && !isDestroyed) renderDashboard(session) }
+            assignedLeadCount = BadgeStore.pendingFirstCallCount(leads)
+            ApiClient.post(JSONObject().put("action", "getEmployeeAlerts").put("employeeId", session.getEmployeeId())) { alertOk, _, alertResponse ->
+                val announcements = alertResponse?.optJSONArray("data")
+                var unreadAnnouncements = 0
+                if (alertOk && announcements != null) for (index in 0 until announcements.length()) if (!announcements.optJSONObject(index).optBoolean("isRead")) unreadAnnouncements++
+                leadAlertCount = alerts + unreadAnnouncements
+                BadgeStore.set(this, assignedLeadCount, leadAlertCount)
+                runOnUiThread { if (!isFinishing && !isDestroyed) renderDashboard(session) }
+            }
         }
     }
 
@@ -129,7 +135,7 @@ class DashboardActivity : AppCompatActivity() {
         if (session.hasMobileFeature("attendance")) tiles.add(modernActionCard(R.drawable.ic_dashboard_attendance, "Attendance", "Mark attendance and review your records", "#059669", "#ECFDF5") { startActivity(Intent(this, AttendanceActivity::class.java)) })
         if (featureAccessLoaded && session.hasMobileFeature("officeWifi")) tiles.add(modernActionCard(R.drawable.ic_dashboard_wifi, "Set Office Wi-Fi", "Submit a connected office network for admin approval", "#0891B2", "#ECFEFF") { startActivity(Intent(this, SetOfficeWifiActivity::class.java)) })
         if (session.hasMobileFeature("leads")) tiles.add(modernActionCard(R.drawable.ic_dashboard_leads, "Assigned Leads", if (session.isTeamLead()) "Call leads or assign them to your executives" else "Call and update your assigned prospects", "#7C3AED", "#F5F3FF", assignedLeadCount) { startActivity(Intent(this, LeadsActivity::class.java)) })
-        if (session.hasMobileFeature("alerts")) tiles.add(modernActionCard(R.drawable.ic_nav_alerts, "Lead Alerts", "Today’s follow-ups and remaining mandatory calls", "#D97706", "#FFFBEB", leadAlertCount) { startActivity(Intent(this, AlertsActivity::class.java)) })
+        if (session.hasMobileFeature("alerts")) tiles.add(modernActionCard(R.drawable.ic_nav_alerts, "Alerts", "Company messages, updates and lead reminders", "#D97706", "#FFFBEB", leadAlertCount) { startActivity(Intent(this, AlertsActivity::class.java)) })
         if (session.hasMobileFeature("profile")) tiles.add(modernActionCard(R.drawable.ic_dashboard_profile, "My Profile", "View your personal and employment information", "#2563EB", "#EFF6FF") { startActivity(Intent(this, ProfileActivity::class.java)) })
         val signOut = modernActionCard(R.drawable.ic_dashboard_logout, "Sign Out", "Securely end this employee session", "#DC2626", "#FEF2F2") {
             session.logout(); startActivity(Intent(this, LoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)); finish()
