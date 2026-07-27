@@ -5,6 +5,13 @@ let messaging = null;
 let initializationAttempted = false;
 let initializationError = "";
 
+function serviceAccountJson() {
+  let raw = String(process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "").trim();
+  if (raw.startsWith("\\{")) raw = raw.slice(1);
+  if (raw.endsWith("\\}")) raw = `${raw.slice(0, -2)}}`;
+  return raw;
+}
+
 function initializeMessaging() {
   if (initializationAttempted) return messaging;
   initializationAttempted = true;
@@ -13,7 +20,7 @@ function initializeMessaging() {
     const { getMessaging } = require("firebase-admin/messaging");
     let credential = null;
     if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-      credential = cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON));
+      credential = cert(JSON.parse(serviceAccountJson()));
     } else if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
       const credentialPath = path.resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
       credential = cert(JSON.parse(fs.readFileSync(credentialPath, "utf8")));
@@ -38,7 +45,7 @@ function initializeMessaging() {
 }
 
 function firebaseConfigurationStatus() {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON || "";
+  const raw = serviceAccountJson();
   let parsed = null;
   let parseError = "";
   if (raw) try { parsed = JSON.parse(raw); } catch (error) { parseError = error.message || "Invalid JSON."; }
