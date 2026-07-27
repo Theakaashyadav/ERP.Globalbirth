@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const Employee = require("../models/Employee");
+const AppRelease = require("../models/AppRelease");
 const { connectDatabase } = require("../db/connection");
 const { sendMandatoryUpdate } = require("./push-notification.service");
 
@@ -10,11 +11,16 @@ const metadataPath = path.join(releaseDir, "latest.json");
 const githubApkUrl = process.env.ANDROID_APK_GITHUB_URL || "https://raw.githubusercontent.com/Theakaashyadav/ERP.Globalbirth/main/public/downloads/GlobalOne-Employee.apk";
 fs.mkdirSync(releaseDir, { recursive: true });
 
-function readLatest() {
+async function readLatest() {
+  try {
+    await connectDatabase();
+    const release = await AppRelease.findOne({ releaseKey: "latest-android" }).lean();
+    if (release) return { ...release, _id: undefined, __v: undefined, releaseKey: undefined, createdAt: undefined, updatedAt: undefined };
+  } catch (error) { console.error("Shared app release lookup failed:", error.message); }
   try { return JSON.parse(fs.readFileSync(metadataPath, "utf8")); } catch { return null; }
 }
-function latest(req, res) {
-  const release = readLatest();
+async function latest(req, res) {
+  const release = await readLatest();
   if (!release) return res.json({ success: true, available: false });
   res.json({ success: true, available: true, release: { ...release, fileName: undefined, downloadUrl: "/api/app-update/download" } });
 }
@@ -45,6 +51,7 @@ async function publish(req, res) {
   fs.writeFileSync(metadataPath, JSON.stringify(release, null, 2));
   try {
     await connectDatabase();
+    await AppRelease.findOneAndUpdate({ releaseKey: "latest-android" }, { $set: { ...release, releaseKey: "latest-android", releasedAt: new Date(release.releasedAt) } }, { upsert: true, new: true, runValidators: true });
     const employees = await Employee.find({ status: "Active", pushToken: { $ne: "" } }).select("pushToken").lean();
     release.notifiedDevices = await sendMandatoryUpdate(employees.map(item => item.pushToken), release);
   } catch (error) {
@@ -53,8 +60,8 @@ async function publish(req, res) {
   }
   res.json({ success: true, release, message: "Mandatory update alert sent using the GitHub APK." });
 }
-function download(req, res) {
-  const release = readLatest();
+async function download(req, res) {
+  const release = await readLatest();
   if (!release) return res.status(404).json({ success: false, message: "No Android release is available." });
   if (release.sourceUrl) return res.redirect(302, release.sourceUrl);
   const file = release.fileName ? path.join(releaseDir, path.basename(release.fileName)) : "";
