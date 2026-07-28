@@ -82,7 +82,7 @@ createRoot(document.getElementById("root")).render(
               <Route path="/hr" element={protect("hr", <HrDashboard />)} />
               <Route path="/hr/employees" element={protect("hr", <Employees />)} />
               <Route path="/hr/reports" element={protect("hr", <Reports />)} />
-              <Route path="/hr/salary-slip" element={protect("hr", <SalarySlip />)} />
+              <Route path="/hr/salary-slip" element={<SalarySlip />} />
               <Route path="/hr/call-activity" element={protect("hr", <CallActivity />)} />
             </>
           )}
