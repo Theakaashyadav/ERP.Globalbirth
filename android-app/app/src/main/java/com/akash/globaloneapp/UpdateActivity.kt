@@ -28,7 +28,7 @@ import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
 class UpdateActivity : AppCompatActivity() {
-    private val client = OkHttpClient.Builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(3, TimeUnit.MINUTES).build()
+    private val client = SecureHttpClientFactory.builder().connectTimeout(20, TimeUnit.SECONDS).readTimeout(3, TimeUnit.MINUTES).build()
     private lateinit var title: TextView; private lateinit var message: TextView; private lateinit var progress: ProgressBar; private lateinit var action: Button
     private var release: JSONObject? = null; private var downloadedApk: File? = null; private var checking = false
     private val updateBaseUrl get() = AppConfig.API_URL.substringBeforeLast("/attendance") + "/app-update"

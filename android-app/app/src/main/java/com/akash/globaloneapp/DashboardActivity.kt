@@ -150,7 +150,7 @@ class DashboardActivity : AppCompatActivity() {
             .appendQueryParameter("employeeId", session.getEmployeeId())
             .appendQueryParameter("androidId", DeviceUtils.getAndroidId(this)).build().toString()
         val request = Request.Builder().url(url).apply { if (AppConfig.API_KEY.isNotBlank()) header("Authorization", "Bearer ${AppConfig.API_KEY}") }.build()
-        OkHttpClient().newCall(request).enqueue(object : Callback {
+        SecureHttpClientFactory.builder().build().newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, error: IOException) { updateCheckInProgress = false }
             override fun onResponse(call: Call, response: Response) {
                 response.use {

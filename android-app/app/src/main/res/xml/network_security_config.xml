@@ -10,6 +10,7 @@
         <trust-anchors>
             <certificates src="system" />
             <certificates src="@raw/rapidssl_tls_rsa_ca_g1" />
+            <certificates src="@raw/digicert_global_root_g2" />
         </trust-anchors>
     </domain-config>
 </network-security-config>

@@ -1,5 +1,6 @@
 package com.akash.globaloneapp
 
+import android.util.Log
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -9,7 +10,7 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
 
-    private val client = OkHttpClient.Builder()
+    private val client = SecureHttpClientFactory.builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
@@ -37,6 +38,7 @@ object ApiClient {
         client.newCall(request).enqueue(object : Callback {
 
             override fun onFailure(call: Call, e: IOException) {
+                Log.e("GlobalOneApi", "Request failed for $action at ${AppConfig.API_URL}", e)
                 callback(false, "Cannot connect to attendance server (${AppConfig.API_URL}). ${e.localizedMessage ?: "Check the server address and network."}", null)
             }
 
