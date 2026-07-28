@@ -65,6 +65,7 @@ createRoot(document.getElementById("root")).render(
           <Route path="/admin/credentials" element={protect("admin", <DashboardCredentials />)} />
           <Route path="/admin/office-wifi" element={protect("admin", <OfficeWifiSettings />)} />
           <Route path="/admin/app-feedback" element={protect("admin", <AppFeedback />)} />
+          <Route path="/admin/call-activity" element={protect("admin", <CallActivity />)} />
           <Route path="/alerts/manage" element={protect(["admin","hr","marketing"], <BroadcastAlerts />)} />
           {!isHrOnly && !isMarketingOnly && (
             <>
@@ -83,7 +84,6 @@ createRoot(document.getElementById("root")).render(
               <Route path="/hr/employees" element={protect("hr", <Employees />)} />
               <Route path="/hr/reports" element={protect("hr", <Reports />)} />
               <Route path="/hr/salary-slip" element={<SalarySlip />} />
-              <Route path="/hr/call-activity" element={protect("hr", <CallActivity />)} />
             </>
           )}
           {!isEmployeeOnly && !isHrOnly && (

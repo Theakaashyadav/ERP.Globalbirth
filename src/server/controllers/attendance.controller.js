@@ -70,7 +70,7 @@ async function handleAttendanceAction(req, res) {
     getEmployees: ["hr"], getAttendance: ["hr"], updateAttendanceRemark: ["hr"],
     updateEmployee: ["hr"], deleteEmployee: ["hr"],
     assignLead: ["marketing"], reassignReturnedLead: ["marketing"], getMarketingLeadDashboard: ["marketing"],
-    requestCallLogStats: ["hr", "marketing"], getCallLogStatsRequest: ["hr", "marketing"],
+    requestCallLogStats: ["admin", "marketing"], getCallLogStatsRequest: ["admin", "marketing"],
     getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], clearAllLeads: ["admin"], sendTestPush: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
     getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { BarChart3, BellRing, Bug, Database, KeyRound, LogOut, Megaphone, Rocket, Settings2, ShieldCheck, Users, Wifi } from "lucide-react";
+import { BarChart3, BellRing, Bug, Database, KeyRound, LogOut, Megaphone, PhoneCall, Rocket, Settings2, ShieldCheck, Users, Wifi } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 import { logout } from "../../auth.js";
 
@@ -10,7 +10,8 @@ const dashboardGroups = [
   ]},
   { title:"Workforce Operations", subtitle:"People, attendance and sales management", items:[
     { title:"HR Dashboard", description:"Employees, attendance, reports, call activity and salary management.", path:"/hr", icon:Users, tone:"blue" },
-    { title:"Marketing Dashboard", description:"Manage leads, assignments, team leaders and sales follow-ups.", path:"/marketing", icon:Megaphone, tone:"purple" }
+    { title:"Marketing Dashboard", description:"Manage leads, assignments, team leaders and sales follow-ups.", path:"/marketing", icon:Megaphone, tone:"purple" },
+    { title:"Realtime Call Activity", description:"Fetch temporary daily call totals from TL and Executive phones.", path:"/admin/call-activity", icon:PhoneCall, tone:"green" }
   ]},
   { title:"Mobile App & Attendance", subtitle:"Employee app controls and office access", items:[
     { title:"Mobile Feature Access", description:"Control feature visibility for every employee role.", path:"/admin/mobile-features", icon:Settings2, tone:"orange" },
