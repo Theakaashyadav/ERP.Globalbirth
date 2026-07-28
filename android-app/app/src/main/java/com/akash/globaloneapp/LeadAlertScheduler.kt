@@ -1,13 +1,11 @@
 package com.akash.globaloneapp
 
 import android.app.AlarmManager
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import org.json.JSONObject
 import java.time.LocalDate
@@ -82,7 +80,7 @@ class LeadAlertReceiver : BroadcastReceiver() {
 
     private fun showNotification(context: Context, alert: LeadAlert) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Lead alerts", NotificationManager.IMPORTANCE_HIGH))
+        AppNotificationChannels.ensure(context, CHANNEL_ID, "Lead reminders", "Follow-ups and required lead call reminders")
         val intent = Intent(context, AlertsActivity::class.java).putExtra("leadId", alert.leadId).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val pending = PendingIntent.getActivity(context, alert.leadId.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         manager.notify((alert.leadId + alert.title).hashCode(), NotificationCompat.Builder(context, CHANNEL_ID)
@@ -91,7 +89,7 @@ class LeadAlertReceiver : BroadcastReceiver() {
             .setNumber(BadgeStore.total(context)).setAutoCancel(true).setContentIntent(pending).build())
     }
 
-    companion object { private const val CHANNEL_ID = "lead_reminder_alerts" }
+    companion object { private const val CHANNEL_ID = AppNotificationChannels.LEAD_REMINDERS }
 }
 
 class LeadAlertBootReceiver : BroadcastReceiver() {

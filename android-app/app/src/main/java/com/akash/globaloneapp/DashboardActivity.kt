@@ -1,6 +1,5 @@
 package com.akash.globaloneapp
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
@@ -116,8 +115,8 @@ class DashboardActivity : AppCompatActivity() {
         val details = Intent(this, AlertDetailsActivity::class.java).putExtra("subject", title).putExtra("message", body).putExtra("sender", sender).putExtra("dateTime", "New alert").addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val pending = PendingIntent.getActivity(this, id.hashCode(), details, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val manager = getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel("company_alerts_v2", "Employee alerts", NotificationManager.IMPORTANCE_HIGH).apply { description = "Important messages from Admin, HR and Marketing"; enableVibration(true) })
-        manager.notify(id.hashCode(), NotificationCompat.Builder(this, "company_alerts_v2").setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_MAX).setCategory(NotificationCompat.CATEGORY_MESSAGE).setDefaults(NotificationCompat.DEFAULT_ALL).setAutoCancel(true).setNumber(BadgeStore.total(this)).setContentIntent(pending).build())
+        AppNotificationChannels.ensure(this, AppNotificationChannels.EMPLOYEE_ALERTS, "Employee alerts", "Important messages from Admin, HR and Marketing")
+        manager.notify(id.hashCode(), NotificationCompat.Builder(this, AppNotificationChannels.EMPLOYEE_ALERTS).setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body).setStyle(NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_MAX).setCategory(NotificationCompat.CATEGORY_MESSAGE).setAutoCancel(true).setNumber(BadgeStore.total(this)).setContentIntent(pending).build())
     }
 
     private fun loadFeatureAccess(session: SessionManager) {
