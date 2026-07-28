@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Activity, ArrowLeft, Clock3, Database, HardDrive, RefreshCw, Server, TableProperties } from "lucide-react";
+import { Activity, ArrowLeft, Clock3, Database, HardDrive, RefreshCw, ShieldAlert, TableProperties, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import PageHeader from "../../components/PageHeader.jsx";
 import { AttendanceApi } from "../../api.js";
@@ -16,6 +16,7 @@ function bytes(value) {
 export default function DatabaseAnalysis() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState("");
   const toast = useToast();
   const load = useCallback(async () => {
     setLoading(true);
@@ -27,6 +28,20 @@ export default function DatabaseAnalysis() {
     finally { setLoading(false); }
   }, [toast]);
   useEffect(() => { load(); }, [load]);
+
+  async function resetCollection(item) {
+    if (!item.resettable || resetting) return;
+    const accepted = window.confirm(`Reset ${item.label}?\n\nThis will permanently delete all ${Number(item.count).toLocaleString()} records in the ${item.collectionName} collection. This cannot be undone.`);
+    if (!accepted) return;
+    setResetting(item.key);
+    try {
+      const result = await AttendanceApi.resetDatabaseCollection(item.key);
+      if (!result.success) throw new Error(result.message);
+      toast.success(`${result.message} ${Number(result.data?.deletedCount||0).toLocaleString()} records deleted.`);
+      await load();
+    } catch (error) { toast.error(error.message || "Collection could not be reset."); }
+    finally { setResetting(""); }
+  }
 
   const usage = Math.max(0, Math.min(Number(data?.utilizationPercent || 0), 100));
   return <main className="screen databaseAnalysisPage"><div className="wide">
@@ -45,19 +60,21 @@ export default function DatabaseAnalysis() {
         <article><span className="dbMetricIcon blue"><Database/></span><div><small>Document data</small><b>{bytes(data.dataSizeBytes)}</b><p>Logical BSON data size</p></div></article>
         <article><span className="dbMetricIcon purple"><TableProperties/></span><div><small>Index storage</small><b>{bytes(data.indexSizeBytes)}</b><p>Across {data.collections} collections</p></div></article>
         <article><span className="dbMetricIcon green"><Activity/></span><div><small>Total documents</small><b>{Number(data.documents).toLocaleString()}</b><p>{data.averageDocumentBytes ? `${bytes(data.averageDocumentBytes)} average` : "Live record count"}</p></div></article>
+        <article><span className="dbMetricIcon blue"><HardDrive/></span><div><small>Plan capacity</small><b>{bytes(data.totalCapacityBytes)}</b><p>{bytes(data.availableStorageBytes)} currently available</p></div></article>
       </section>
 
       <section className="databaseLayout">
         <article className="panel storagePanel">
           <div className="databaseSectionTitle"><div><span>STORAGE CAPACITY</span><h2>Database utilization</h2></div><b>{data.utilizationPercent == null ? "Not reported" : `${data.utilizationPercent}%`}</b></div>
           <div className="storageTrack"><span style={{width: `${usage}%`}}/></div>
-          <div className="storageLegend"><div><small>Used</small><b>{bytes(data.totalUsedBytes)}</b></div><div><small>Available capacity</small><b>{data.totalCapacityBytes ? bytes(data.totalCapacityBytes) : "Not reported by Atlas"}</b></div><div><small>Capacity source</small><b>{data.capacitySource}</b></div></div>
-          <p className="databaseHint">Storage is allocated collection storage plus index storage. Atlas may hide the plan maximum from database-level statistics; configure MONGODB_STORAGE_LIMIT_BYTES to display the exact plan limit.</p>
+          <div className="storageLegend"><div><small>Used</small><b>{bytes(data.totalUsedBytes)}</b></div><div><small>Available</small><b>{bytes(data.availableStorageBytes)}</b></div><div><small>Total capacity</small><b>{bytes(data.totalCapacityBytes)}</b></div></div>
+          <p className="databaseHint">Capacity is based on your 512 MB Atlas plan. Used storage includes allocated collection storage and indexes. Collection figures below are read live from MongoDB.</p>
         </article>
 
         <article className="panel collectionPanel">
-          <div className="databaseSectionTitle"><div><span>COLLECTION ACTIVITY</span><h2>Stored records</h2></div><b>{data.collections} collections</b></div>
-          <div className="collectionCountList">{data.collectionCounts.map(item => <div key={item.key}><span>{item.label}</span><b>{Number(item.count).toLocaleString()}</b></div>)}</div>
+          <div className="databaseSectionTitle"><div><span>COLLECTION ACTIVITY</span><h2>Stored records</h2></div><b>{data.collectionCounts.length} tracked</b></div>
+          <div className="collectionResetNotice"><ShieldAlert size={18}/><span>Reset permanently deletes every record in only the selected collection. Dashboard accounts are protected.</span></div>
+          <div className="collectionCountList">{data.collectionCounts.map(item => <article key={item.key} className="collectionRecord"><div><span>{item.label}</span><small>{item.collectionName} · {bytes(item.totalUsedBytes)}</small></div><b>{Number(item.count).toLocaleString()}</b>{item.resettable ? <button className="collectionResetButton" disabled={resetting === item.key || Number(item.count) === 0} onClick={() => resetCollection(item)} title={`Reset ${item.label}`}><Trash2 size={15}/>{resetting === item.key ? "Resetting..." : "Reset"}</button> : <span className="collectionProtected">Protected</span>}</article>)}</div>
         </article>
       </section>
 

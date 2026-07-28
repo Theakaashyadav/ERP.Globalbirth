@@ -75,6 +75,7 @@ export const AttendanceApi = {
   ,requestCallLogStats: (employeeIds, date) => request("requestCallLogStats", { employeeIds, date })
   ,getCallLogStatsRequest: requestId => request("getCallLogStatsRequest", { requestId })
   ,getDatabaseAnalysis: () => request("getDatabaseAnalysis")
+  ,resetDatabaseCollection: collectionKey => request("resetDatabaseCollection", { collectionKey, confirmation: `RESET ${collectionKey}` })
   ,getDashboardCredentials: () => request("getDashboardCredentials")
   ,updateDashboardCredential: (role, username, password) => request("updateDashboardCredential", { role, username, password })
   ,getOfficeWifiSettings: () => request("getOfficeWifiSettings")

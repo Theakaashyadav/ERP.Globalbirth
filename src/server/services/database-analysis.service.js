@@ -5,7 +5,35 @@ const Lead = require("../models/Lead");
 const MobileFeaturePolicy = require("../models/MobileFeaturePolicy");
 const DashboardCredential = require("../models/DashboardCredential");
 const OfficeWifiPolicy = require("../models/OfficeWifiPolicy");
+const Announcement = require("../models/Announcement");
+const AppFeedback = require("../models/AppFeedback");
+const AppRelease = require("../models/AppRelease");
+const CallLogRequest = require("../models/CallLogRequest");
 const { connectDatabase } = require("../db/connection");
+
+const DEFAULT_PLAN_CAPACITY_BYTES = 512 * 1024 * 1024;
+const collections = [
+  { key: "employees", label: "Employees", model: Employee, resettable: true },
+  { key: "attendance", label: "Attendance Records", model: AttendanceRecord, resettable: true },
+  { key: "leads", label: "Leads", model: Lead, resettable: true },
+  { key: "announcements", label: "Announcements", model: Announcement, resettable: true },
+  { key: "appFeedback", label: "App Feedback", model: AppFeedback, resettable: true },
+  { key: "appReleases", label: "App Release History", model: AppRelease, resettable: true },
+  { key: "callLogRequests", label: "Temporary Call Requests", model: CallLogRequest, resettable: true },
+  { key: "featurePolicies", label: "Feature Policies", model: MobileFeaturePolicy, resettable: true },
+  { key: "officeWifiPolicies", label: "Office Wi-Fi Policies", model: OfficeWifiPolicy, resettable: true },
+  { key: "dashboardAccounts", label: "Dashboard Accounts", model: DashboardCredential, resettable: false }
+];
+
+async function collectionSnapshot(connection, item) {
+  const count = await item.model.countDocuments({});
+  let storage = {};
+  try { storage = await connection.db.command({ collStats: item.model.collection.name, scale: 1 }); }
+  catch { storage = {}; }
+  const storageSizeBytes = Number(storage.storageSize || 0);
+  const indexSizeBytes = Number(storage.totalIndexSize || 0);
+  return { key:item.key, label:item.label, collectionName:item.model.collection.name, count, dataSizeBytes:Number(storage.size||0), storageSizeBytes, indexSizeBytes, totalUsedBytes:storageSizeBytes+indexSizeBytes, resettable:item.resettable };
+}
 
 async function getDatabaseAnalysis() {
   const startedAt = Date.now();
@@ -14,13 +42,9 @@ async function getDatabaseAnalysis() {
   await connection.db.admin().ping();
   const latencyMs = Date.now() - pingStartedAt;
   const stats = await connection.db.command({ dbStats: 1, scale: 1 });
-  const [employees, attendance, leads, policies, dashboardAccounts, wifiPolicies] = await Promise.all([
-    Employee.countDocuments({}), AttendanceRecord.countDocuments({}),
-    Lead.countDocuments({}), MobileFeaturePolicy.countDocuments({}), DashboardCredential.countDocuments({}), OfficeWifiPolicy.countDocuments({})
-  ]);
+  const collectionCounts = await Promise.all(collections.map(item => collectionSnapshot(connection, item)));
   const configuredCapacity = Number(process.env.MONGODB_STORAGE_LIMIT_BYTES || 0);
-  const reportedCapacity = Number(stats.fsTotalSize || 0);
-  const totalCapacityBytes = configuredCapacity > 0 ? configuredCapacity : reportedCapacity;
+  const totalCapacityBytes = configuredCapacity > 0 ? configuredCapacity : DEFAULT_PLAN_CAPACITY_BYTES;
   const usedStorageBytes = Number(stats.storageSize || 0) + Number(stats.indexSize || 0);
 
   return {
@@ -42,19 +66,23 @@ async function getDatabaseAnalysis() {
       indexSizeBytes: Number(stats.indexSize || 0),
       totalUsedBytes: usedStorageBytes,
       totalCapacityBytes,
-      capacitySource: configuredCapacity > 0 ? "Configured plan limit" : (reportedCapacity > 0 ? "Reported by MongoDB" : "Not reported by Atlas"),
+      availableStorageBytes: Math.max(totalCapacityBytes - usedStorageBytes, 0),
+      capacitySource: configuredCapacity > 0 ? "Configured plan limit" : "512 MB Atlas plan limit",
       utilizationPercent: totalCapacityBytes > 0 ? Number(((usedStorageBytes / totalCapacityBytes) * 100).toFixed(2)) : null,
       averageDocumentBytes: Number(stats.avgObjSize || 0),
-      collectionCounts: [
-        { key: "employees", label: "Employees", count: employees },
-        { key: "attendance", label: "Attendance Records", count: attendance },
-        { key: "leads", label: "Leads", count: leads },
-        { key: "featurePolicies", label: "Feature Policies", count: policies },
-        { key: "dashboardAccounts", label: "Dashboard Accounts", count: dashboardAccounts },
-        { key: "officeWifiPolicies", label: "Office Wi-Fi Policies", count: wifiPolicies }
-      ]
+      collectionCounts
     }
   };
 }
 
-module.exports = { getDatabaseAnalysis };
+async function resetDatabaseCollection(payload = {}) {
+  const key = String(payload.collectionKey || "").trim();
+  const target = collections.find(item => item.key === key);
+  if (!target || !target.resettable) throw new Error("This database collection cannot be reset.");
+  if (String(payload.confirmation || "") !== `RESET ${key}`) throw new Error("Reset confirmation did not match.");
+  await connectDatabase();
+  const result = await target.model.deleteMany({});
+  return { success:true, message:`${target.label} reset successfully.`, data:{ collectionKey:key, deletedCount:Number(result.deletedCount||0) } };
+}
+
+module.exports = { getDatabaseAnalysis, resetDatabaseCollection };

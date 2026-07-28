@@ -46,6 +46,7 @@ const handlers = {
   ,getCallLogStatsRequest: callLogs.getCallLogStatsRequest
   ,getPendingCallLogRequests: callLogs.getPendingCallLogRequests
   ,getDatabaseAnalysis: databaseAnalysis.getDatabaseAnalysis
+  ,resetDatabaseCollection: databaseAnalysis.resetDatabaseCollection
   ,getDashboardCredentials: dashboardCredentials.getDashboardCredentials
   ,updateDashboardCredential: dashboardCredentials.updateDashboardCredential
   ,getOfficeWifiSettings: officeWifi.getOfficeWifiSettings
@@ -74,7 +75,7 @@ async function handleAttendanceAction(req, res) {
     updateEmployee: ["hr"], deleteEmployee: ["hr"],
     assignLead: ["marketing"], reassignReturnedLead: ["marketing"], getMarketingLeadDashboard: ["marketing"],
     requestCallLogStats: ["admin", "marketing"], getCallLogStatsRequest: ["admin", "marketing"],
-    getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], clearAllLeads: ["admin"], sendTestPush: ["admin"],
+    getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], resetDatabaseCollection: ["admin"], clearAllLeads: ["admin"], sendTestPush: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
     getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAttendanceWifiExemptions: ["admin"], updateAttendanceWifiExemptions: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],
     sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"], deleteBroadcastAlert: ["admin", "hr", "marketing"], getAlertRecipients: ["admin", "hr", "marketing"]
