@@ -44,7 +44,7 @@ async function submitCallLogStats(payload) {
     "results.$.incomingCalls": Math.max(0, Number(stats.incomingCalls) || 0), "results.$.missedCalls": Math.max(0, Number(stats.missedCalls) || 0),
     "results.$.totalDurationSeconds": Math.max(0, Number(stats.totalDurationSeconds) || 0),
     "results.$.permissionAllowed": Math.max(0, Number(payload.permissionAllowed) || 0),
-    "results.$.permissionTotal": Math.max(1, Number(payload.permissionTotal) || 5), "results.$.receivedAt": new Date()
+    "results.$.permissionTotal": Math.max(1, Number(payload.permissionTotal) || 11), "results.$.receivedAt": new Date()
   } });
   return { success: result.modifiedCount === 1, message: result.modifiedCount === 1 ? "Call totals received." : "Realtime request expired, completed, or was not found." };
 }

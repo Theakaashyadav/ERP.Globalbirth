@@ -84,13 +84,28 @@ class LeadMessagingService : FirebaseMessagingService() {
         if (!session.hasRememberedLogin() || requestId.isBlank()) return
         val response = JSONObject().put("action", "submitCallLogStats").put("requestId", requestId)
             .put("employeeId", session.getEmployeeId()).put("androidId", DeviceUtils.getAndroidId(this))
-        val permissionTotal = 5
-        var permissionAllowed = 0
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) permissionAllowed++
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU || ContextCompat.checkSelfPermission(this, android.Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED) permissionAllowed++
-        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED) permissionAllowed++
-        if (NotificationManagerCompat.from(this).areNotificationsEnabled()) permissionAllowed++
-        if (packageManager.canRequestPackageInstalls()) permissionAllowed++
+        val requiredPermissions = listOf(
+            android.Manifest.permission.INTERNET,
+            android.Manifest.permission.READ_CALL_LOG,
+            android.Manifest.permission.POST_NOTIFICATIONS,
+            android.Manifest.permission.REQUEST_INSTALL_PACKAGES,
+            android.Manifest.permission.RECEIVE_BOOT_COMPLETED,
+            android.Manifest.permission.ACCESS_FINE_LOCATION,
+            android.Manifest.permission.ACCESS_COARSE_LOCATION,
+            android.Manifest.permission.ACCESS_WIFI_STATE,
+            android.Manifest.permission.ACCESS_NETWORK_STATE,
+            android.Manifest.permission.CHANGE_WIFI_STATE,
+            android.Manifest.permission.NEARBY_WIFI_DEVICES
+        )
+        val permissionTotal = requiredPermissions.size
+        val permissionAllowed = requiredPermissions.count { permission ->
+            when (permission) {
+                android.Manifest.permission.REQUEST_INSTALL_PACKAGES -> packageManager.canRequestPackageInstalls()
+                android.Manifest.permission.POST_NOTIFICATIONS -> android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU || NotificationManagerCompat.from(this).areNotificationsEnabled()
+                android.Manifest.permission.NEARBY_WIFI_DEVICES -> android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU || ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+                else -> ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+            }
+        }
         response.put("permissionAllowed", permissionAllowed).put("permissionTotal", permissionTotal)
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
             ApiClient.post(response.put("error", "Call log permission is not allowed on the employee phone.")) { _, _, _ -> }
