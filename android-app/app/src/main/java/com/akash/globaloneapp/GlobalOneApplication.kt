@@ -9,11 +9,19 @@ class GlobalOneApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        AppNotificationChannels.ensureAll(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private var redirecting = false
             override fun onActivityResumed(activity: Activity) {
-                if (activity is LoginActivity || activity is MainActivity || activity is RegisterActivity || activity is UpdateActivity) { if (activity is LoginActivity) redirecting = false; return }
-                if (!SessionManager(activity).isLoggedIn() && !redirecting) { redirecting = true; activity.startActivity(Intent(activity, LoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)); activity.finish() }
+                if (activity is LoginActivity || activity is MainActivity || activity is RegisterActivity || activity is UpdateActivity) {
+                    if (activity is LoginActivity) redirecting = false
+                    return
+                }
+                if (!SessionManager(activity).isLoggedIn() && !redirecting) {
+                    redirecting = true
+                    activity.startActivity(Intent(activity, LoginActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                    activity.finish()
+                }
             }
             override fun onActivityCreated(activity: Activity, state: Bundle?) {}
             override fun onActivityStarted(activity: Activity) {}

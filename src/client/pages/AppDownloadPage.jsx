@@ -13,7 +13,7 @@ export default function AppDownloadPage() {
   useEffect(() => { fetch("/api/app-update/latest").then(response => response.json()).then(data => { if (data.available) setRelease(data.release); }).catch(() => {}); }, []);
   const version = release?.versionName || "1.20.7";
   const size = release?.sizeBytes ? `${(release.sizeBytes / 1048576).toFixed(1)} MB` : "17.7 MB";
-  const apkUrl = "/downloads/GlobalOne-Employee.apk?v=37";
+  const apkUrl = "/downloads/GlobalOne-Employee.apk?v=38";
 
   return <main className="appDownloadPage">
     <nav className="downloadNav">
