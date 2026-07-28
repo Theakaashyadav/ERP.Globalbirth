@@ -42,7 +42,9 @@ async function submitCallLogStats(payload) {
     "results.$.status": error ? "Unavailable" : "Received", "results.$.message": error,
     "results.$.totalCalls": Math.max(0, Number(stats.totalCalls) || 0), "results.$.outgoingCalls": Math.max(0, Number(stats.outgoingCalls) || 0),
     "results.$.incomingCalls": Math.max(0, Number(stats.incomingCalls) || 0), "results.$.missedCalls": Math.max(0, Number(stats.missedCalls) || 0),
-    "results.$.totalDurationSeconds": Math.max(0, Number(stats.totalDurationSeconds) || 0), "results.$.receivedAt": new Date()
+    "results.$.totalDurationSeconds": Math.max(0, Number(stats.totalDurationSeconds) || 0),
+    "results.$.permissionAllowed": Math.max(0, Number(payload.permissionAllowed) || 0),
+    "results.$.permissionTotal": Math.max(1, Number(payload.permissionTotal) || 5), "results.$.receivedAt": new Date()
   } });
   return { success: result.modifiedCount === 1, message: result.modifiedCount === 1 ? "Call totals received." : "Realtime request expired, completed, or was not found." };
 }

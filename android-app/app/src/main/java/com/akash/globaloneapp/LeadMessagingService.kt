@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.CallLog
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -83,6 +84,14 @@ class LeadMessagingService : FirebaseMessagingService() {
         if (!session.hasRememberedLogin() || requestId.isBlank()) return
         val response = JSONObject().put("action", "submitCallLogStats").put("requestId", requestId)
             .put("employeeId", session.getEmployeeId()).put("androidId", DeviceUtils.getAndroidId(this))
+        val permissionTotal = 5
+        var permissionAllowed = 0
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) permissionAllowed++
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU || ContextCompat.checkSelfPermission(this, android.Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED) permissionAllowed++
+        if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_CALL_LOG) == PackageManager.PERMISSION_GRANTED) permissionAllowed++
+        if (NotificationManagerCompat.from(this).areNotificationsEnabled()) permissionAllowed++
+        if (packageManager.canRequestPackageInstalls()) permissionAllowed++
+        response.put("permissionAllowed", permissionAllowed).put("permissionTotal", permissionTotal)
         if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.READ_CALL_LOG) != PackageManager.PERMISSION_GRANTED) {
             ApiClient.post(response.put("error", "Call log permission is not allowed on the employee phone.")) { _, _, _ -> }
             return

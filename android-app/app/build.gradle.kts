@@ -13,8 +13,8 @@ android {
         applicationId = "com.akash.globaloneapp"
         minSdk = 30
         targetSdk = 36
-        versionCode = 30
-        versionName = "1.20.5"
+        versionCode = 31
+        versionName = "1.20.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val attendanceApiUrl = project.findProperty("ATTENDANCE_API_URL")?.toString()?.takeIf { it.isNotBlank() }
