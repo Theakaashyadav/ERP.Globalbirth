@@ -45,6 +45,7 @@ class AttendanceActivity : AppCompatActivity() {
     private var isWifiVerified = false
     private var wifiMatchScore = 0
     private var wifiSettingsLoaded = false
+    private var wifiVerificationExempt = false
     private var matchedOffice: OfficeWifi? = null
     private var approvedOffices = emptyList<OfficeWifi>()
 
@@ -171,6 +172,7 @@ class AttendanceActivity : AppCompatActivity() {
 
     private fun loadOfficeWifiSettings() {
         wifiSettingsLoaded = false
+        wifiVerificationExempt = false
         isWifiVerified = false
         btnSubmit.isEnabled = false
         setCheckingWifiUi()
@@ -182,6 +184,14 @@ class AttendanceActivity : AppCompatActivity() {
             runOnUiThread {
                 if (!success) {
                     setWifiNotVerifiedUi(message.ifEmpty { "Office WiFi settings unavailable" })
+                    return@runOnUiThread
+                }
+                wifiVerificationExempt = response?.optJSONObject("data")?.optBoolean("wifiVerificationExempt", false) == true
+                if (wifiVerificationExempt) {
+                    wifiSettingsLoaded = true
+                    isWifiVerified = true
+                    matchedOffice = null
+                    setWifiExemptUi()
                     return@runOnUiThread
                 }
                 val offices = response?.optJSONObject("data")?.optJSONArray("offices") ?: JSONArray()
@@ -209,6 +219,11 @@ class AttendanceActivity : AppCompatActivity() {
 
     private fun updateWifiDetails() {
         try {
+            if (wifiVerificationExempt) {
+                isWifiVerified = true
+                setWifiExemptUi()
+                return
+            }
             setCheckingWifiUi()
 
             if (!wifiSettingsLoaded) {
@@ -316,13 +331,13 @@ class AttendanceActivity : AppCompatActivity() {
             return
         }
 
-        if (!hasLocationPermission()) {
+        if (!wifiVerificationExempt && !hasLocationPermission()) {
             showError("Location permission required to verify WiFi.")
             requestLocationPermission()
             return
         }
 
-        if (!isLocationEnabled()) {
+        if (!wifiVerificationExempt && !isLocationEnabled()) {
             showError("Please turn ON phone Location/GPS.")
             return
         }
@@ -330,7 +345,7 @@ class AttendanceActivity : AppCompatActivity() {
         btnSubmit.isEnabled = false
         btnSubmit.text = "Processing..."
 
-        updateWifiDetails()
+        if (!wifiVerificationExempt) updateWifiDetails()
 
         if (employeeId.isEmpty()) {
             btnSubmit.isEnabled = true
@@ -406,6 +421,13 @@ class AttendanceActivity : AppCompatActivity() {
         tvWifiStatus.text = "Office WiFi verified - ${matchedOffice?.name ?: "Approved Office"}"
         tvWifiStatus.setBackgroundResource(R.drawable.status_green)
         tvWifiStatus.setTextColor(ContextCompat.getColor(this, android.R.color.black))
+    }
+
+    private fun setWifiExemptUi() {
+        tvWifiStatus.text = "Office Wi-Fi verification not required for your account"
+        tvWifiStatus.setBackgroundResource(R.drawable.status_green)
+        tvWifiStatus.setTextColor(ContextCompat.getColor(this, android.R.color.black))
+        btnSubmit.isEnabled = true
     }
 
     private fun setWifiNotVerifiedUi(message: String) {

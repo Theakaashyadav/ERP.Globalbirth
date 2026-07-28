@@ -68,10 +68,39 @@ async function updateOfficeWifiSettings(payload) {
   return { success: true, data: { offices: policy.offices, updatedAt: policy.updatedAt }, message: "Office Wi-Fi settings updated." };
 }
 
-async function getEmployeeOfficeWifiSettings() {
+async function getEmployeeOfficeWifiSettings(payload) {
   await connectDatabase();
   const policy = await readPolicy();
-  return { success: true, data: { offices: (policy.offices || []).filter(office => office.active && (office.status === "approved" || !office.status)) } };
+  const employeeId = clean(payload.employeeId);
+  return { success: true, data: { offices: (policy.offices || []).filter(office => office.active && (office.status === "approved" || !office.status)), wifiVerificationExempt: (policy.exemptEmployeeIds || []).includes(employeeId) } };
+}
+
+async function getAttendanceWifiExemptions() {
+  await connectDatabase();
+  const [policy, employees] = await Promise.all([
+    readPolicy(),
+    Employee.find({ status: "Active" }).select("employeeId fullName department designation").sort({ fullName: 1 }).lean()
+  ]);
+  return { success: true, data: { exemptEmployeeIds: policy.exemptEmployeeIds || [], employees: employees.map(item => ({ employeeId: item.employeeId, fullName: item.fullName, department: item.department || "Unassigned", designation: item.designation || "" })) } };
+}
+
+async function updateAttendanceWifiExemptions(payload) {
+  await connectDatabase();
+  const requested = [...new Set((Array.isArray(payload.employeeIds) ? payload.employeeIds : []).map(clean).filter(Boolean))];
+  const activeEmployees = requested.length ? await Employee.find({ employeeId: { $in: requested }, status: "Active" }).select("employeeId").lean() : [];
+  const exemptEmployeeIds = activeEmployees.map(item => item.employeeId);
+  await OfficeWifiPolicy.findOneAndUpdate(
+    { policyKey: "office-wifi" },
+    { $set: { exemptEmployeeIds }, $setOnInsert: { policyKey: "office-wifi", offices: defaultOffices() } },
+    { upsert: true, new: true, runValidators: true }
+  );
+  return { success: true, data: { exemptEmployeeIds }, message: `${exemptEmployeeIds.length} employee(s) can mark attendance without office Wi-Fi.` };
+}
+
+async function isEmployeeExempt(employeeId) {
+  await connectDatabase();
+  const policy = await readPolicy();
+  return (policy.exemptEmployeeIds || []).includes(clean(employeeId));
 }
 
 async function submitOfficeWifi(payload) {
@@ -121,4 +150,4 @@ async function verifyActiveOfficeNetwork(officeId, network = {}) {
   return bssidMatches || (ssidMatches && (!clean(office.ipPrefix) || networkMatches)) || (!cleanSsid(office.ssid) && networkMatches);
 }
 
-module.exports = { getOfficeWifiSettings, updateOfficeWifiSettings, getEmployeeOfficeWifiSettings, submitOfficeWifi, getEmployeeWifiSubmissions, isActiveOffice, verifyActiveOfficeNetwork };
+module.exports = { getOfficeWifiSettings, updateOfficeWifiSettings, getEmployeeOfficeWifiSettings, getAttendanceWifiExemptions, updateAttendanceWifiExemptions, isEmployeeExempt, submitOfficeWifi, getEmployeeWifiSubmissions, isActiveOffice, verifyActiveOfficeNetwork };

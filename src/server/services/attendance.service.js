@@ -584,11 +584,13 @@ async function getEmployeeProfile(payload) {
 async function saveAttendance(payload) {
   await connectDatabase();
 
-  if (cleanText(payload.androidId) && !(await officeWifi.verifyActiveOfficeNetwork(payload.officeId, { ssid: payload.wifiSsid, bssid: payload.wifiBssid, privateIp: payload.wifiPrivateIp }))) {
+  const records = Array.isArray(payload.records) ? payload.records : [];
+  const attendanceEmployeeId = cleanText(records[0]?.employeeId);
+  const wifiExempt = attendanceEmployeeId && await officeWifi.isEmployeeExempt(attendanceEmployeeId);
+  if (cleanText(payload.androidId) && !wifiExempt && !(await officeWifi.verifyActiveOfficeNetwork(payload.officeId, { ssid: payload.wifiSsid, bssid: payload.wifiBssid, privateIp: payload.wifiPrivateIp }))) {
     return { success: false, message: "This office Wi-Fi is no longer approved. Refresh the attendance page." };
   }
 
-  const records = Array.isArray(payload.records) ? payload.records : [];
   const now = new Date();
   const indiaDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
   const indiaTime = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Kolkata", hour: "2-digit", minute: "2-digit", hour12: true }).format(now);

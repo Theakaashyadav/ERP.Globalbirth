@@ -53,6 +53,8 @@ const handlers = {
   ,getEmployeeOfficeWifiSettings: officeWifi.getEmployeeOfficeWifiSettings
   ,submitOfficeWifi: officeWifi.submitOfficeWifi
   ,getEmployeeWifiSubmissions: officeWifi.getEmployeeWifiSubmissions
+  ,getAttendanceWifiExemptions: officeWifi.getAttendanceWifiExemptions
+  ,updateAttendanceWifiExemptions: officeWifi.updateAttendanceWifiExemptions
   ,sendBroadcastAlert: announcements.sendBroadcastAlert
   ,getBroadcastAlerts: announcements.getBroadcastAlerts
   ,deleteBroadcastAlert: announcements.deleteBroadcastAlert
@@ -74,7 +76,7 @@ async function handleAttendanceAction(req, res) {
     requestCallLogStats: ["admin", "marketing"], getCallLogStatsRequest: ["admin", "marketing"],
     getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], clearAllLeads: ["admin"], sendTestPush: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
-    getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],
+    getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAttendanceWifiExemptions: ["admin"], updateAttendanceWifiExemptions: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],
     sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"], deleteBroadcastAlert: ["admin", "hr", "marketing"], getAlertRecipients: ["admin", "hr", "marketing"]
   };
   const allowedRoles = rolePolicies[action];

@@ -16,7 +16,8 @@ const officeSchema = new mongoose.Schema({
 
 const officeWifiPolicySchema = new mongoose.Schema({
   policyKey: { type: String, unique: true, default: "office-wifi" },
-  offices: { type: [officeSchema], default: [] }
+  offices: { type: [officeSchema], default: [] },
+  exemptEmployeeIds: { type: [String], default: [] }
 }, { timestamps: true });
 
 module.exports = mongoose.models.OfficeWifiPolicy || mongoose.model("OfficeWifiPolicy", officeWifiPolicySchema);
