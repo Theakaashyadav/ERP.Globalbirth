@@ -4,6 +4,9 @@ const announcementSchema = new mongoose.Schema({
   message: { type: String, required: true, trim: true, maxlength: 5000 },
   sentByRole: { type: String, required: true, enum: ["admin", "hr", "marketing"] },
   sentByName: { type: String, default: "" },
+  allEmployees: { type: Boolean, default: true },
+  targetDepartments: { type: [String], default: [] },
+  targetEmployeeIds: { type: [String], default: [] },
   readByEmployeeIds: { type: [String], default: [] }
 }, { timestamps: true });
 announcementSchema.index({ createdAt: -1 });

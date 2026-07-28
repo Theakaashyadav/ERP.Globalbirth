@@ -5,6 +5,8 @@ const Employee = require("../models/Employee");
 const AppRelease = require("../models/AppRelease");
 const { connectDatabase } = require("../db/connection");
 const { sendMandatoryUpdate } = require("./push-notification.service");
+const { audience, employeeAudienceQuery, isTarget } = require("./announcement.service");
+const { readDashboardSession } = require("../security/dashboard-session");
 
 const releaseDir = path.resolve(process.cwd(), "data", "app-releases");
 const metadataPath = path.join(releaseDir, "latest.json");
@@ -35,6 +37,14 @@ async function readLatest() {
 async function latest(req, res) {
   const release = await readLatest();
   if (!release) return res.json({ success: true, available: false });
+  if (release.allEmployees === false && readDashboardSession(req)?.role !== "admin") {
+    const employeeId = String(req.query.employeeId || "").trim();
+    const androidId = String(req.query.androidId || "").trim();
+    if (!employeeId || !androidId) return res.json({ success: true, available: false });
+    await connectDatabase();
+    const employee = await Employee.findOne({ employeeId, registeredAndroidId: androidId, status: "Active" }).select("employeeId department").lean();
+    if (!employee || !isTarget(release, employee)) return res.json({ success: true, available: false });
+  }
   res.json({ success: true, available: true, release: { ...release, fileName: undefined, downloadUrl: "/api/app-update/download" } });
 }
 async function candidate(req, res) {
@@ -47,6 +57,9 @@ async function candidate(req, res) {
 }
 async function publish(req, res) {
   const notes = String(req.body.notes || "").trim();
+  let selection;
+  try { selection = audience(req.body); }
+  catch (error) { return res.status(400).json({ success: false, message: error.message }); }
   let versionCode;
   let versionName;
   try {
@@ -69,19 +82,19 @@ async function publish(req, res) {
   const release = {
     versionCode, versionName, notes, mandatory: true, sizeBytes: bytes.length,
     sha256: crypto.createHash("sha256").update(bytes).digest("hex"), sourceUrl,
-    releasedAt: new Date().toISOString()
+    releasedAt: new Date().toISOString(), ...selection
   };
   fs.writeFileSync(metadataPath, JSON.stringify(release, null, 2));
   try {
     await connectDatabase();
     await AppRelease.findOneAndUpdate({ releaseKey: "latest-android" }, { $set: { ...release, releaseKey: "latest-android", releasedAt: new Date(release.releasedAt) } }, { upsert: true, new: true, runValidators: true });
-    const employees = await Employee.find({ status: "Active", pushToken: { $ne: "" } }).select("pushToken").lean();
+    const employees = await Employee.find({ ...employeeAudienceQuery(selection), pushToken: { $ne: "" } }).select("pushToken").lean();
     release.notifiedDevices = await sendMandatoryUpdate(employees.map(item => item.pushToken), release);
   } catch (error) {
     console.error("Mandatory update notification failed:", error.message);
     release.notifiedDevices = 0;
   }
-  res.json({ success: true, release, message: "Mandatory update alert sent using the GitHub APK." });
+  res.json({ success: true, release, message: selection.allEmployees ? "Mandatory update alert sent to all active employees." : "Mandatory update alert sent to the selected recipients." });
 }
 async function download(req, res) {
   const release = await readLatest();

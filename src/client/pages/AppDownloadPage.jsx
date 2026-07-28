@@ -39,7 +39,7 @@ export default function AppDownloadPage() {
           <div className="downloadPhoneBar"/><div className="downloadPhoneHeader"><div className="downloadAppMark">G</div><div><b>Good morning</b><small>Employee dashboard</small></div><span>●</span></div>
           <div className="downloadWelcome"><small>WELCOME BACK</small><b>Everything you need,<br/>in one place.</b></div>
           <div className="downloadPhoneGrid"><span><MapPin/>Attendance</span><span><UserRoundCheck/>Leads</span><span><BellRing/>Alerts<i>3</i></span><span><Fingerprint/>Profile</span></div>
-          <div className="downloadPhoneStatus"><Wifi size={16}/><div><b>Background sync active</b><small>Connected securely</small></div><CheckCircle2 size={17}/></div>
+          <div className="downloadPhoneStatus"><Wifi size={16}/><div><b>Push notifications active</b><small>Connected securely</small></div><CheckCircle2 size={17}/></div>
         </div>
         <div className="downloadFloatCard alert"><BellRing/><span><b>New Alert</b><small>Company update received</small></span></div>
         <div className="downloadFloatCard secure"><ShieldCheck/><span><b>Device secured</b><small>Biometric protection</small></span></div>

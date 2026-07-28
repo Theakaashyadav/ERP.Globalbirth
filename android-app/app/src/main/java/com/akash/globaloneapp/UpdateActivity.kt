@@ -2,6 +2,7 @@ package com.akash.globaloneapp
 
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
@@ -34,6 +35,12 @@ class UpdateActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        intent.getStringExtra("alertKey")?.takeIf { it.isNotBlank() }?.let {
+            if (!AlertReadStore.isRead(this, it)) {
+                AlertReadStore.markRead(this, it)
+                BadgeStore.set(this, BadgeStore.leadCount(this), (BadgeStore.alertCount(this) - 1).coerceAtLeast(0))
+            }
+        }
         setFinishOnTouchOutside(false)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { override fun handleOnBackPressed() = Unit })
         buildUi()
@@ -44,8 +51,8 @@ class UpdateActivity : AppCompatActivity() {
     private fun buildUi() {
         val root = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(12),dp(12),dp(12),dp(12)); setBackgroundColor(Color.TRANSPARENT) }
         val card = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=Gravity.CENTER; setPadding(dp(26),dp(30),dp(26),dp(30)); background=GradientDrawable().apply{setColor(Color.WHITE);cornerRadius=dp(24).toFloat()}; elevation=dp(10).toFloat() }
-        val badge=TextView(this).apply { text="GLOBAL ONE APP"; textSize=12f; setTextColor(Color.rgb(2,132,199)); gravity=Gravity.CENTER; setTypeface(typeface,1) }
-        title=TextView(this).apply { text="Checking for updates"; textSize=26f; gravity=Gravity.CENTER; setTextColor(Color.rgb(15,23,42)); setTypeface(typeface,1); setPadding(0,dp(14),0,dp(8)) }
+        val badge=TextView(this).apply { text="GLOBAL ONE APP"; textSize=12f; setTextColor(Color.rgb(2,132,199)); gravity=Gravity.CENTER; setTypeface(typeface, Typeface.BOLD) }
+        title=TextView(this).apply { text="Checking for updates"; textSize=26f; gravity=Gravity.CENTER; setTextColor(Color.rgb(15,23,42)); setTypeface(typeface, Typeface.BOLD); setPadding(0,dp(14),0,dp(8)) }
         message=TextView(this).apply { text="Please wait while we verify the latest mandatory version."; textSize=15f; gravity=Gravity.CENTER; setTextColor(Color.rgb(100,116,139)) }
         progress=ProgressBar(this).apply { isIndeterminate=true }
         action=Button(this).apply { text="Retry"; isAllCaps=false; visibility=Button.GONE; setOnClickListener { release?.let { downloadUpdate(it) } ?: checkForUpdate() } }
@@ -55,7 +62,11 @@ class UpdateActivity : AppCompatActivity() {
     private fun request(url:String)=Request.Builder().url(url).apply { if(AppConfig.API_KEY.isNotBlank()) header("Authorization","Bearer ${AppConfig.API_KEY}") }.build()
     private fun checkForUpdate() {
         if(checking)return; checking=true; showLoading("Checking for updates","Connecting to the update server...")
-        client.newCall(request("$updateBaseUrl/latest")).enqueue(object:Callback{
+        val session = SessionManager(this)
+        val latestUrl = Uri.parse("$updateBaseUrl/latest").buildUpon()
+            .appendQueryParameter("employeeId", session.getEmployeeId())
+            .appendQueryParameter("androidId", DeviceUtils.getAndroidId(this)).build().toString()
+        client.newCall(request(latestUrl)).enqueue(object:Callback{
             override fun onFailure(call:Call,e:IOException)=runOnUiThread{checking=false;showError("Update check required",e.localizedMessage?:"Cannot reach update server.")}
             override fun onResponse(call:Call,response:Response){response.use{val body=it.body?.string().orEmpty();runOnUiThread{checking=false;try{val json=JSONObject(body);val item=json.optJSONObject("release");if(!it.isSuccessful||!json.optBoolean("success"))showError("Update check failed",json.optString("message","Server error"))else if(!json.optBoolean("available")||item==null||item.optInt("versionCode")<=BuildConfig.VERSION_CODE)continueToApp()else{release=item;showRequired(item)}}catch(e:Exception){showError("Invalid update response",e.localizedMessage?:"Try again.")}}}}
         })

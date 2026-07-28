@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.view.View
@@ -84,8 +85,7 @@ class DashboardActivity : AppCompatActivity() {
         ApiClient.post(JSONObject().put("action", "getEmployeeLeads").put("employeeId", session.getEmployeeId())) { ok, _, response ->
             if (!ok) return@post
             val leads = response?.optJSONArray("data") ?: return@post
-            var alerts = 0
-            for (index in 0 until leads.length()) alerts += LeadAlertFactory.fromLead(leads.optJSONObject(index) ?: continue).size
+            val alerts = AlertReadStore.unreadLeadCount(this, leads, session.getEmployeeId())
             assignedLeadCount = BadgeStore.pendingFirstCallCount(leads)
             ApiClient.post(JSONObject().put("action", "getEmployeeAlerts").put("employeeId", session.getEmployeeId())) { alertOk, _, alertResponse ->
                 val announcements = alertResponse?.optJSONArray("data")
@@ -95,7 +95,8 @@ class DashboardActivity : AppCompatActivity() {
                     val item = announcements.optJSONObject(index) ?: continue
                     if (!item.optBoolean("isRead")) { unreadAnnouncements++; if (newestUnread == null) newestUnread = item }
                 }
-                leadAlertCount = alerts + unreadAnnouncements
+                val unreadUpdate = AlertReadStore.latestUpdate(this)?.let { if (it.versionCode > BuildConfig.VERSION_CODE && !AlertReadStore.isRead(this, it.key)) 1 else 0 } ?: 0
+                leadAlertCount = alerts + unreadAnnouncements + unreadUpdate
                 BadgeStore.set(this, assignedLeadCount, leadAlertCount)
                 runOnUiThread { if (!isFinishing && !isDestroyed) { renderDashboard(session); newestUnread?.let { showAlertNotificationIfNeeded(it) } } }
             }
@@ -145,7 +146,10 @@ class DashboardActivity : AppCompatActivity() {
     private fun checkMandatoryUpdate() {
         if (updateCheckInProgress) return
         updateCheckInProgress = true
-        val url = AppConfig.API_URL.substringBeforeLast("/attendance") + "/app-update/latest"
+        val session = SessionManager(this)
+        val url = Uri.parse(AppConfig.API_URL.substringBeforeLast("/attendance") + "/app-update/latest").buildUpon()
+            .appendQueryParameter("employeeId", session.getEmployeeId())
+            .appendQueryParameter("androidId", DeviceUtils.getAndroidId(this)).build().toString()
         val request = Request.Builder().url(url).apply { if (AppConfig.API_KEY.isNotBlank()) header("Authorization", "Bearer ${AppConfig.API_KEY}") }.build()
         OkHttpClient().newCall(request).enqueue(object : Callback {
             override fun onFailure(call: Call, error: IOException) { updateCheckInProgress = false }

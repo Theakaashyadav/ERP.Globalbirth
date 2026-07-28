@@ -46,16 +46,19 @@ object LeadAlertScheduler {
                 set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
                 if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
             }
-            val intent = Intent(context, LeadAlertReceiver::class.java)
+            val intent = Intent(context, LeadAlertReceiver::class.java).setAction(ACTION_LEAD_ALERT)
             val pending = PendingIntent.getBroadcast(context, 7000 + hour, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
             alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time.timeInMillis, pending)
         }
     }
+
+    const val ACTION_LEAD_ALERT = "com.akash.globaloneapp.action.LEAD_ALERT"
 }
 
 class LeadAlertReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
         context ?: return
+        if (intent?.action != LeadAlertScheduler.ACTION_LEAD_ALERT) return
         LeadAlertScheduler.schedule(context)
         val session = SessionManager(context)
         if (!session.hasRememberedLogin() || (!session.hasMobileFeature("leads") && !session.hasMobileFeature("alerts"))) return
@@ -67,9 +70,9 @@ class LeadAlertReceiver : BroadcastReceiver() {
                     val alerts = mutableListOf<LeadAlert>()
                     for (index in 0 until leads.length()) {
                         val lead = leads.optJSONObject(index) ?: continue
-                        alerts += LeadAlertFactory.fromLead(lead)
+                        alerts += LeadAlertFactory.fromLead(lead).filter { !AlertReadStore.isRead(context, AlertReadStore.leadReminderKey(it)) }
                     }
-                    BadgeStore.set(context, BadgeStore.pendingFirstCallCount(leads), alerts.size)
+                    BadgeStore.set(context, BadgeStore.pendingFirstCallCount(leads), AlertReadStore.unreadLeadCount(context, leads, session.getEmployeeId()))
                     alerts.forEach { showNotification(context, it) }
                 }
             }
@@ -92,5 +95,8 @@ class LeadAlertReceiver : BroadcastReceiver() {
 }
 
 class LeadAlertBootReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context?, intent: Intent?) { context?.let { LeadAlertScheduler.schedule(it) } }
+    override fun onReceive(context: Context?, intent: Intent?) {
+        if (intent?.action != Intent.ACTION_BOOT_COMPLETED && intent?.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
+        context?.let { LeadAlertScheduler.schedule(it) }
+    }
 }

@@ -11,6 +11,8 @@ import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import org.json.JSONObject
 import java.time.OffsetDateTime
+import java.time.Instant
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -19,7 +21,7 @@ class AlertsActivity : AppCompatActivity() {
     private val alerts = mutableListOf<InboxAlert>()
     private var showNew = true
 
-    data class InboxAlert(val id: String, val subject: String, val message: String, val sender: String, val dateTime: String, var isRead: Boolean, val leadId: String = "")
+    data class InboxAlert(val id: String, val subject: String, val message: String, val sender: String, val dateTime: String, var isRead: Boolean, val leadId: String = "", val isUpdate: Boolean = false)
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -41,6 +43,10 @@ class AlertsActivity : AppCompatActivity() {
 
     private fun loadAlerts() {
         val session = SessionManager(this); alerts.clear()
+        AlertReadStore.latestUpdate(this)?.takeIf { it.versionCode > BuildConfig.VERSION_CODE }?.let { update ->
+            val date = Instant.ofEpochMilli(update.receivedAt).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("dd MMM yyyy • hh:mm a"))
+            alerts += InboxAlert(update.key, update.title, update.body, "ADMIN • APP UPDATE", date, AlertReadStore.isRead(this, update.key), isUpdate = true)
+        }
         ApiClient.post(JSONObject().put("action", "getEmployeeAlerts").put("employeeId", session.getEmployeeId())) { ok, message, response ->
             if (!ok) { runOnUiThread { showFailure(message) }; return@post }
             response?.optJSONArray("data")?.let { items ->
@@ -57,7 +63,14 @@ class AlertsActivity : AppCompatActivity() {
             val leads = response?.optJSONArray("data")
             if (ok && leads != null) for (i in 0 until leads.length()) {
                 val lead = leads.optJSONObject(i) ?: continue
-                LeadAlertFactory.fromLead(lead).forEach { alert -> alerts += InboxAlert("lead-${alert.leadId}-${alert.title}", alert.title, alert.message, "LEAD SYSTEM", "Today", false, alert.leadId) }
+                if (lead.optString("assignedEmployeeId") == session.getEmployeeId() && lead.optString("firstCallAt").isBlank()) {
+                    val key = AlertReadStore.leadAssignmentKey(lead.optString("leadId"))
+                    alerts += InboxAlert(key, "New lead: ${lead.optString("name").ifBlank { "Lead" }}", "Call within 30 minutes.", "LEAD SYSTEM", "Today", AlertReadStore.isRead(this, key), lead.optString("leadId"))
+                }
+                LeadAlertFactory.fromLead(lead).forEach { alert ->
+                    val key = AlertReadStore.leadReminderKey(alert)
+                    alerts += InboxAlert(key, alert.title, alert.message, "LEAD SYSTEM", "Today", AlertReadStore.isRead(this, key), alert.leadId)
+                }
             }
             BadgeStore.set(this, if (leads == null) 0 else BadgeStore.pendingFirstCallCount(leads), alerts.count { !it.isRead })
             runOnUiThread { EmployeeUi.refreshBadges(this); render() }
@@ -114,12 +127,28 @@ class AlertsActivity : AppCompatActivity() {
     }
 
     private fun openAlert(alert: InboxAlert) {
-        if (alert.leadId.isNotBlank()) { startActivity(Intent(this, LeadDetailsActivity::class.java).putExtra("leadId", alert.leadId)); return }
+        if (alert.leadId.isNotBlank()) {
+            markLocalRead(alert)
+            startActivity(Intent(this, LeadDetailsActivity::class.java).putExtra("leadId", alert.leadId).putExtra("alertKey", alert.id)); return
+        }
+        if (alert.isUpdate) {
+            markLocalRead(alert)
+            startActivity(Intent(this, UpdateActivity::class.java).putExtra("afterLogin", true).putExtra("alertKey", alert.id)); return
+        }
         if (!alert.isRead) {
             alert.isRead = true; val session = SessionManager(this)
             ApiClient.post(JSONObject().put("action", "markAlertRead").put("employeeId", session.getEmployeeId()).put("alertId", alert.id)) { _, _, _ -> }
         }
         startActivity(Intent(this, AlertDetailsActivity::class.java).putExtra("subject", alert.subject).putExtra("message", alert.message).putExtra("sender", alert.sender).putExtra("dateTime", alert.dateTime))
+    }
+
+    private fun markLocalRead(alert: InboxAlert) {
+        if (alert.isRead) return
+        alert.isRead = true
+        AlertReadStore.markRead(this, alert.id)
+        BadgeStore.set(this, BadgeStore.leadCount(this), (BadgeStore.alertCount(this) - 1).coerceAtLeast(0))
+        EmployeeUi.refreshBadges(this)
+        render()
     }
 
     private fun sender(item: JSONObject): String {

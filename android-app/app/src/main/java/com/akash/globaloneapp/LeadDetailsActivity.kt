@@ -43,6 +43,12 @@ class LeadDetailsActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        intent.getStringExtra("alertKey")?.takeIf { it.isNotBlank() }?.let {
+            if (!AlertReadStore.isRead(this, it)) {
+                AlertReadStore.markRead(this, it)
+                BadgeStore.set(this, BadgeStore.leadCount(this), (BadgeStore.alertCount(this) - 1).coerceAtLeast(0))
+            }
+        }
         load()
     }
 
@@ -78,8 +84,7 @@ class LeadDetailsActivity : AppCompatActivity() {
         ApiClient.post(JSONObject().put("action", "getEmployeeLeads").put("employeeId", employeeId)) { ok, _, response ->
             if (!ok) return@post
             val leads = response?.optJSONArray("data") ?: return@post
-            var alertCount = 0
-            for (index in 0 until leads.length()) alertCount += LeadAlertFactory.fromLead(leads.optJSONObject(index) ?: continue).size
+            val alertCount = AlertReadStore.unreadLeadCount(this, leads, employeeId)
             BadgeStore.set(this, BadgeStore.pendingFirstCallCount(leads), alertCount)
             runOnUiThread { EmployeeUi.refreshBadges(this) }
         }

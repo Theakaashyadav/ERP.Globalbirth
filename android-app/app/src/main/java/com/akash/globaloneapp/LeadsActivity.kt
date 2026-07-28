@@ -76,12 +76,12 @@ class LeadsActivity : AppCompatActivity() {
                         leads = response?.optJSONArray("data") ?: JSONArray()
                         executives = JSONArray()
                     }
-                    var alertCount = 0
                     val ownLeads = JSONArray()
                     for (index in 0 until leads.length()) {
                         val lead = leads.optJSONObject(index) ?: continue
-                        if (lead.optString("assignedEmployeeId") == employeeId) { ownLeads.put(lead); alertCount += LeadAlertFactory.fromLead(lead).size }
+                        if (lead.optString("assignedEmployeeId") == employeeId) ownLeads.put(lead)
                     }
+                    val alertCount = AlertReadStore.unreadLeadCount(this, ownLeads, employeeId)
                     BadgeStore.set(this, BadgeStore.pendingFirstCallCount(ownLeads), alertCount)
                     EmployeeUi.refreshBadges(this)
                     buildPage()

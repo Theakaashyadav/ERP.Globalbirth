@@ -9,8 +9,8 @@ const fields = [
   ["esiNo", "ESI Number"], ["doj", "D.O.J."], ["uan", "UAN#"], ["paidDays", "Paid Days"], ["leaveDays", "Leave"]
 ];
 
-const earnings = [["BASIC", "basic"], ["H.R.A.", "hra"], ["CONVEY.", "convey"], ["PER.ALLO", "perAllo"], ["FUEL", "fuel"], ["UNIFORM", "uniform"], ["BOOKS", "books"], ["DRIVER S", "driver"], ["ARR-1", "arr1"], ["ARR-2", "arr2"], ["ARR-3", "arr3"], ["BONUS", "bonus"], ["D.WAGE", "dwage"], ["OVERTIME", "overtime"]];
-const deductions = [["E.P.F.", "epf"], ["E.S.I.C.", "esic"], ["ADVANCE", "advance"], ["I.TAX", "itax"], ["LWFEE", "lwfee"], ["P.TAX", "ptax"], ["REC-OT", "recot"], ["LOAN", "loan"]];
+const earnings = [["basic", "BASIC"], ["hra", "H.R.A."], ["convey", "CONVEY."], ["perAllo", "PER.ALLO"], ["fuel", "FUEL"], ["uniform", "UNIFORM"], ["books", "BOOKS"], ["driver", "DRIVER S"], ["arr1", "ARR-1"], ["arr2", "ARR-2"], ["arr3", "ARR-3"], ["bonus", "BONUS"], ["dwage", "D.WAGE"], ["overtime", "OVERTIME"]];
+const deductions = [["epf", "E.P.F."], ["esic", "E.S.I.C."], ["advance", "ADVANCE"], ["itax", "I.TAX"], ["lwfee", "LWFEE"], ["ptax", "P.TAX"], ["recot", "REC-OT"], ["loan", "LOAN"]];
 const allInputs = [...fields, ...earnings, ...deductions];
 
 function numberToWords(number) {
@@ -38,8 +38,8 @@ export default function SalarySlip() {
 
   const totals = useMemo(() => {
     const num = key => Number(form[key]) || 0;
-    const totalEarning = earnings.reduce((sum, [, key]) => sum + num(key), 0);
-    const totalDeduction = deductions.reduce((sum, [, key]) => sum + num(key), 0);
+    const totalEarning = earnings.reduce((sum, [key]) => sum + num(key), 0);
+    const totalDeduction = deductions.reduce((sum, [key]) => sum + num(key), 0);
     return { totalEarning, totalDeduction, netPay: totalEarning - totalDeduction };
   }, [form]);
 
@@ -76,7 +76,7 @@ export default function SalarySlip() {
               {Array.from({ length: 14 }).map((_, index) => {
                 const earn = earnings[index] || ["", ""];
                 const ded = deductions[index] || ["", ""];
-                return <tr key={index}><td>{earn[0]}</td><td style={{ textAlign: "right" }}>{form[earn[1]]}</td><td style={{ textAlign: "right" }}>{form[earn[1]]}</td><td>{ded[0]}</td><td style={{ textAlign: "right" }}>{form[ded[1]]}</td></tr>;
+                return <tr key={index}><td>{earn[1]}</td><td style={{ textAlign: "right" }}>{form[earn[0]]}</td><td style={{ textAlign: "right" }}>{form[earn[0]]}</td><td>{ded[1]}</td><td style={{ textAlign: "right" }}>{form[ded[0]]}</td></tr>;
               })}
               <tr><td>Total</td><td style={{ textAlign: "right" }}><b>{totals.totalEarning.toFixed(2)}</b></td><td style={{ textAlign: "right" }}><b>{totals.totalEarning.toFixed(0)}</b></td><td>Total</td><td style={{ textAlign: "right" }}><b>{totals.totalDeduction.toFixed(2)}</b></td></tr>
               <tr><td colSpan="3"><b>Net Payable for the Month {form.monthYear || "__________"}</b></td><td colSpan="2" style={{ textAlign: "center" }}><b>{totals.netPay.toFixed(2)}</b></td></tr>

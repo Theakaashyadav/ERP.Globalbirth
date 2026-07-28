@@ -28,7 +28,11 @@ class LeadMessagingService : FirebaseMessagingService() {
             return
         }
         if (message.data["type"] == "app_update") {
-            showUpdateNotification(message.data["title"] ?: "Mandatory App Update", message.data["body"] ?: "Update now to continue.")
+            val title = message.data["title"] ?: "Mandatory App Update"
+            val body = message.data["body"] ?: "Update now to continue."
+            val key = AlertReadStore.saveUpdate(this, message.data["versionCode"]?.toIntOrNull() ?: 0, title, body)
+            if (!AlertReadStore.isRead(this, key)) BadgeStore.incrementAlerts(this)
+            showUpdateNotification(title, body, key)
             return
         }
         if (message.data["type"] == "common_alert") {
@@ -48,6 +52,7 @@ class LeadMessagingService : FirebaseMessagingService() {
         manager.createNotificationChannel(NotificationChannel(channelId, "Lead assignments", NotificationManager.IMPORTANCE_HIGH))
         val intent = Intent(this, if (leadId.isBlank()) DashboardActivity::class.java else LeadDetailsActivity::class.java)
             .putExtra("leadId", leadId)
+            .putExtra("alertKey", AlertReadStore.leadAssignmentKey(leadId))
             .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         val pendingIntent = PendingIntent.getActivity(this, leadId.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = NotificationCompat.Builder(this, channelId)
@@ -68,11 +73,11 @@ class LeadMessagingService : FirebaseMessagingService() {
         manager.notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
     }
 
-    private fun showUpdateNotification(title: String, body: String) {
+    private fun showUpdateNotification(title: String, body: String, alertKey: String) {
         val channelId = "mandatory_updates"
         val manager = getSystemService(NotificationManager::class.java)
         manager.createNotificationChannel(NotificationChannel(channelId, "Mandatory app updates", NotificationManager.IMPORTANCE_HIGH))
-        val pendingIntent = PendingIntent.getActivity(this, 9101, Intent(this, UpdateActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        val pendingIntent = PendingIntent.getActivity(this, 9101, Intent(this, UpdateActivity::class.java).putExtra("alertKey", alertKey).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(this, channelId).setSmallIcon(R.mipmap.ic_launcher).setContentTitle(title).setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body)).setPriority(NotificationCompat.PRIORITY_MAX).setAutoCancel(true).setContentIntent(pendingIntent).build()
         manager.notify(9101, notification)

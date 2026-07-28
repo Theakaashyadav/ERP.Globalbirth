@@ -58,6 +58,7 @@ const handlers = {
   ,deleteBroadcastAlert: announcements.deleteBroadcastAlert
   ,getEmployeeAlerts: announcements.getEmployeeAlerts
   ,markAlertRead: announcements.markAlertRead
+  ,getAlertRecipients: announcements.getAlertRecipients
   ,submitAppFeedback: appFeedback.submitAppFeedback
   ,getAppFeedback: appFeedback.getAppFeedback
   ,deleteAllAppFeedback: appFeedback.deleteAllAppFeedback
@@ -74,7 +75,7 @@ async function handleAttendanceAction(req, res) {
     getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], clearAllLeads: ["admin"], sendTestPush: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
     getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],
-    sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"], deleteBroadcastAlert: ["admin", "hr", "marketing"]
+    sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"], deleteBroadcastAlert: ["admin", "hr", "marketing"], getAlertRecipients: ["admin", "hr", "marketing"]
   };
   const allowedRoles = rolePolicies[action];
   if (allowedRoles && !canAccessDashboardRole(readDashboardSession(req), allowedRoles)) {
