@@ -58,17 +58,17 @@ export default function SalarySlip() {
     return { totalEarning, totalDeduction, netPay:totalEarning-totalDeduction };
   }, [form, removed]);
 
-  async function generateAndSave() {
+  async function generateAndSave({ silent = false } = {}) {
     if (!canManage) { toast.warning("Sign in to the HR dashboard to save salary slips."); return false; }
     setSaving(true);
     try {
       const result = await AttendanceApi.saveSalarySlip(editingId, form, removedFields);
       if (!result.success) throw new Error(result.message);
-      setEditingId(result.data.id); toast.success(result.message); await loadSaved(); return true;
+      setEditingId(result.data.id); if (!silent) toast.success(result.message); await loadSaved(); return true;
     } catch (error) { toast.error(error.message || "Salary slip could not be saved."); return false; }
     finally { setSaving(false); }
   }
-  async function printSlip() { if (!canManage || await generateAndSave()) window.print(); }
+  async function printSlip() { if (!canManage || await generateAndSave({ silent:true })) window.print(); }
 
   const visibleEarnings = earnings.filter(([key]) => !removed.has(key));
   const visibleDeductions = deductions.filter(([key]) => !removed.has(key));
