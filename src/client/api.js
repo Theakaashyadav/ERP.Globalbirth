@@ -88,4 +88,6 @@ export const AttendanceApi = {
   ,deleteBroadcastAlert: (alertId, senderRole) => request("deleteBroadcastAlert", { alertId, senderRole })
   ,getAppFeedback: () => request("getAppFeedback")
   ,deleteAllAppFeedback: () => request("deleteAllAppFeedback")
+  ,getSalarySlips: () => request("getSalarySlips")
+  ,saveSalarySlip: (slipId, values, removedFields) => request("saveSalarySlip", { slipId, values, removedFields })
 };

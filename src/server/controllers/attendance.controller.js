@@ -6,6 +6,7 @@ const dashboardCredentials = require("../services/dashboard-credential.service")
 const officeWifi = require("../services/office-wifi.service");
 const announcements = require("../services/announcement.service");
 const appFeedback = require("../services/app-feedback.service");
+const salarySlips = require("../services/salary-slip.service");
 const Employee = require("../models/Employee");
 const { connectDatabase } = require("../db/connection");
 const { readDashboardSession, readEmployeeSession, canAccessDashboardRole } = require("../security/dashboard-session");
@@ -65,6 +66,8 @@ const handlers = {
   ,submitAppFeedback: appFeedback.submitAppFeedback
   ,getAppFeedback: appFeedback.getAppFeedback
   ,deleteAllAppFeedback: appFeedback.deleteAllAppFeedback
+  ,getSalarySlips: salarySlips.getSalarySlips
+  ,saveSalarySlip: salarySlips.saveSalarySlip
 };
 
 async function handleAttendanceAction(req, res) {
@@ -78,6 +81,7 @@ async function handleAttendanceAction(req, res) {
     getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], resetDatabaseCollection: ["admin"], clearAllLeads: ["admin"], sendTestPush: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
     getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAttendanceWifiExemptions: ["admin"], updateAttendanceWifiExemptions: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],
+    getSalarySlips: ["hr"], saveSalarySlip: ["hr"],
     sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"], deleteBroadcastAlert: ["admin", "hr", "marketing"], getAlertRecipients: ["admin", "hr", "marketing"]
   };
   const allowedRoles = rolePolicies[action];
