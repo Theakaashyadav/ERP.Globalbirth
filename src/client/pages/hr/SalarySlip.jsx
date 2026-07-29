@@ -12,8 +12,8 @@ const fields = [
   ["department", "Department"], ["pfNo", "P.F. Number"], ["panNo", "PAN No."], ["bankNo", "Bank A/c No."],
   ["esiNo", "ESI Number"], ["doj", "D.O.J."], ["uan", "UAN#"], ["paidDays", "Paid Days"], ["leaveDays", "Leave"]
 ];
-const earnings = [["basic", "BASIC"], ["hra", "H.R.A."], ["convey", "CONVEY."], ["perAllo", "PER.ALLO"], ["fuel", "FUEL"], ["uniform", "UNIFORM"], ["books", "BOOKS"], ["driver", "DRIVER S"], ["arr1", "ARR-1"], ["arr2", "ARR-2"], ["arr3", "ARR-3"], ["bonus", "BONUS"], ["dwage", "D.WAGE"], ["overtime", "OVERTIME"]];
-const deductions = [["epf", "E.P.F."], ["esic", "E.S.I.C."], ["advance", "ADVANCE"], ["itax", "I.TAX"], ["lwfee", "LWFEE"], ["ptax", "P.TAX"], ["recot", "REC-OT"], ["loan", "LOAN"]];
+const earnings = [["basic", "Basic Salary"], ["hra", "House Rent Allowance (HRA)"], ["perAllo", "Special Allowance"], ["convey", "Conveyance Allowance"], ["fuel", "FUEL"], ["uniform", "UNIFORM"], ["books", "BOOKS"], ["driver", "DRIVER S"], ["arr1", "ARR-1"], ["arr2", "ARR-2"], ["arr3", "ARR-3"], ["bonus", "BONUS"], ["dwage", "D.WAGE"], ["overtime", "OVERTIME"]];
+const deductions = [["epf", "Employee EPF Contribution (Included in CTC)"], ["esic", "E.S.I.C."], ["advance", "ADVANCE"], ["itax", "I.TAX"], ["lwfee", "LWFEE"], ["ptax", "P.TAX"], ["recot", "REC-OT"], ["loan", "LOAN"]];
 const allInputs = [...fields, ...earnings, ...deductions];
 const labels = Object.fromEntries(allInputs);
 const emptyForm = () => Object.fromEntries(allInputs.map(([key]) => [key, ""]));
@@ -99,7 +99,7 @@ export default function SalarySlip() {
         {(!removed.has("paidDays") || !removed.has("leaveDays")) && <tr>{!removed.has("paidDays") && <><td>Paid Days</td><td colSpan={removed.has("leaveDays") ? 4 : 1}>{form.paidDays}</td></>}{!removed.has("leaveDays") && <><td>Leave</td><td colSpan={removed.has("paidDays") ? 4 : 2}>{form.leaveDays}</td></>}</tr>}
         {payRows.length > 0 && <tr><th></th><th>Rate</th><th>Earnings</th><th>Deductions</th><th></th></tr>}
         {payRows.map((_, index) => { const earn=visibleEarnings[index] || ["",""]; const ded=visibleDeductions[index] || ["",""]; return <tr key={index}><td>{earn[1]}</td><td style={{textAlign:"right"}}>{form[earn[0]]}</td><td style={{textAlign:"right"}}>{form[earn[0]]}</td><td>{ded[1]}</td><td style={{textAlign:"right"}}>{form[ded[0]]}</td></tr>; })}
-        {payRows.length > 0 && <><tr><td>Total</td><td style={{textAlign:"right"}}><b>{totals.totalEarning.toFixed(2)}</b></td><td style={{textAlign:"right"}}><b>{totals.totalEarning.toFixed(0)}</b></td><td>Total</td><td style={{textAlign:"right"}}><b>{totals.totalDeduction.toFixed(2)}</b></td></tr><tr><td colSpan="3"><b>Net Payable{!removed.has("monthYear") ? ` for the Month ${form.monthYear || "__________"}` : ""}</b></td><td colSpan="2" style={{textAlign:"center"}}><b>{totals.netPay.toFixed(2)}</b></td></tr><tr><td colSpan="5"><b>(Rupees {numberToWords(totals.netPay)} Only)</b></td></tr></>}
+        {payRows.length > 0 && <><tr><td>Gross Salary</td><td style={{textAlign:"right"}}><b>{totals.totalEarning.toFixed(2)}</b></td><td style={{textAlign:"right"}}><b>{totals.totalEarning.toFixed(0)}</b></td><td>Total Deductions</td><td style={{textAlign:"right"}}><b>{totals.totalDeduction.toFixed(2)}</b></td></tr><tr><td colSpan="3"><b>Net Payable{!removed.has("monthYear") ? ` for the Month ${form.monthYear || "__________"}` : ""}</b></td><td colSpan="2" style={{textAlign:"center"}}><b>{totals.netPay.toFixed(2)}</b></td></tr><tr><td colSpan="5"><b>(Rupees {numberToWords(totals.netPay)} Only)</b></td></tr></>}
         <tr><td colSpan="5"><b><i>Note : This is computer generated statement and does not require signature</i></b></td></tr>
       </tbody></table>
     </section>
