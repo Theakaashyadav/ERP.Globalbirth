@@ -15,6 +15,11 @@ const dashboardUsers = {
     username: process.env.MARKETING_USERNAME || "marketing",
     password: process.env.MARKETING_PASSWORD || "marketing123",
     name: process.env.MARKETING_NAME || "Marketing Manager"
+  },
+  ceo: {
+    username: process.env.CEO_USERNAME || "ceo",
+    password: process.env.CEO_PASSWORD || "ceo12345",
+    name: process.env.CEO_NAME || "Chief Executive Officer"
   }
 };
 

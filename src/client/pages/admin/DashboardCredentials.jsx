@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import PageHeader from "../../components/PageHeader.jsx";
 import { AttendanceApi } from "../../api.js";
 import { useToast } from "../../components/Toast.jsx";
-const labels={admin:["Administrator","Full system and management access"],hr:["HR Manager","Employees, attendance and workforce access"],marketing:["Marketing Manager","Lead assignment and analysis access"]};
+const labels={admin:["Administrator","Full system and management access"],hr:["HR Manager","Employees, attendance and workforce access"],marketing:["Marketing Manager","Lead assignment and analysis access"],ceo:["Chief Executive Officer","Read-only attendance and employee visibility, plus alerts"]};
 export default function DashboardCredentials(){
  const[accounts,setAccounts]=useState([]),[saving,setSaving]=useState(""),[visible,setVisible]=useState({});const toast=useToast();
  async function load(){try{const r=await AttendanceApi.getDashboardCredentials();if(!r.success)throw new Error(r.message);setAccounts((r.data||[]).map(x=>({...x,password:"",confirmPassword:""})))}catch(e){toast.error(e.message||"Could not load dashboard accounts.")}}

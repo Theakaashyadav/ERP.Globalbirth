@@ -7,7 +7,8 @@ export default function ProtectedRoute({ role, children }) {
     const loginPaths = {
       employee: "/employee/login",
       hr: "/hr/login",
-      marketing: "/marketing/login"
+      marketing: "/marketing/login",
+      ceo: "/ceo/login"
     };
     const sessionRole = (() => { try { return JSON.parse(localStorage.getItem("dashboardSession") || "null")?.role; } catch { return ""; } })();
     localStorage.removeItem("dashboardSession");

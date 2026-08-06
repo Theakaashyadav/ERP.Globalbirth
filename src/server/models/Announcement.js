@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const announcementSchema = new mongoose.Schema({
   subject: { type: String, required: true, trim: true, maxlength: 150 },
   message: { type: String, required: true, trim: true, maxlength: 5000 },
-  sentByRole: { type: String, required: true, enum: ["admin", "hr", "marketing"] },
+  sentByRole: { type: String, required: true, enum: ["admin", "hr", "marketing", "ceo"] },
   sentByName: { type: String, default: "" },
   allEmployees: { type: Boolean, default: true },
   targetDepartments: { type: [String], default: [] },

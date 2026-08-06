@@ -29,6 +29,9 @@ import LeadAnalysis from "./pages/marketing/LeadAnalysis.jsx";
 import MarketingHome from "./pages/marketing/MarketingHome.jsx";
 import HomePage from "./pages/HomePage.jsx";
 import BroadcastAlerts from "./pages/alerts/BroadcastAlerts.jsx";
+import CeoDashboard from "./pages/ceo/CeoDashboard.jsx";
+import CeoAttendance from "./pages/ceo/CeoAttendance.jsx";
+import CeoEmployees from "./pages/ceo/CeoEmployees.jsx";
 import "./styles.css";
 
 const appRole = import.meta.env.VITE_ATTENDANCE_ROLE || "combined";
@@ -58,6 +61,7 @@ createRoot(document.getElementById("root")).render(
           <Route path="/hr/login" element={<DashboardLogin role="hr" />} />
           <Route path="/marketing/login" element={<DashboardLogin role="marketing" />} />
           <Route path="/admin/login" element={<DashboardLogin role="admin" redirect={adminRedirectPath} />} />
+          <Route path="/ceo/login" element={<DashboardLogin role="ceo" />} />
           <Route path="/admin-login" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin" element={protect("admin", <AdminDashboard />)} />
           <Route path="/admin/mobile-features" element={protect("admin", <MobileFeatureAccess />)} />
@@ -68,7 +72,10 @@ createRoot(document.getElementById("root")).render(
           <Route path="/admin/attendance-wifi-exemptions" element={protect("admin", <AttendanceWifiExemptions />)} />
           <Route path="/admin/app-feedback" element={protect("admin", <AppFeedback />)} />
           <Route path="/admin/call-activity" element={protect("admin", <CallActivity />)} />
-          <Route path="/alerts/manage" element={protect(["admin","hr","marketing"], <BroadcastAlerts />)} />
+          <Route path="/alerts/manage" element={protect(["admin","hr","marketing","ceo"], <BroadcastAlerts />)} />
+          <Route path="/ceo" element={protect("ceo", <CeoDashboard />)} />
+          <Route path="/ceo/attendance" element={protect("ceo", <CeoAttendance />)} />
+          <Route path="/ceo/employees" element={protect("ceo", <CeoEmployees />)} />
           {!isHrOnly && !isMarketingOnly && (
             <>
               <Route path="/employee/register" element={<EmployeeRegister />} />

@@ -459,7 +459,7 @@ async function loginDashboardUser(payload) {
   const role = cleanText(payload.role).toLowerCase();
   const username = cleanText(payload.username);
   const password = cleanText(payload.password);
-  if (!["hr", "marketing", "admin"].includes(role)) {
+  if (!["hr", "marketing", "admin", "ceo"].includes(role)) {
     return {
       success: false,
       message: "Invalid dashboard role."
