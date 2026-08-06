@@ -74,7 +74,7 @@ async function handleAttendanceAction(req, res) {
   const action = String(req.body.action || "").trim();
   const publicActions = new Set(["addEmployee", "webLoginEmployee", "mobileLoginEmployee", "validateMobileSession", "loginDashboardUser", "submitAppFeedback"]);
   const rolePolicies = {
-    getEmployees: ["hr"], getAttendance: ["hr"], updateAttendanceRemark: ["hr"],
+    getEmployees: ["hr", "ceo"], getAttendance: ["hr", "ceo"], updateAttendanceRemark: ["hr"],
     updateEmployee: ["hr"], deleteEmployee: ["hr"],
     assignLead: ["marketing"], reassignReturnedLead: ["marketing"], getMarketingLeadDashboard: ["marketing"],
     requestCallLogStats: ["admin", "marketing"], getCallLogStatsRequest: ["admin", "marketing"],
@@ -82,7 +82,7 @@ async function handleAttendanceAction(req, res) {
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
     getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAttendanceWifiExemptions: ["admin"], updateAttendanceWifiExemptions: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],
     getSalarySlips: ["hr"], saveSalarySlip: ["hr"],
-    sendBroadcastAlert: ["admin", "hr", "marketing"], getBroadcastAlerts: ["admin", "hr", "marketing"], deleteBroadcastAlert: ["admin", "hr", "marketing"], getAlertRecipients: ["admin", "hr", "marketing"]
+    sendBroadcastAlert: ["admin", "hr", "marketing", "ceo"], getBroadcastAlerts: ["admin", "hr", "marketing", "ceo"], deleteBroadcastAlert: ["admin", "hr", "marketing", "ceo"], getAlertRecipients: ["admin", "hr", "marketing", "ceo"]
   };
   const allowedRoles = rolePolicies[action];
   if (allowedRoles && !canAccessDashboardRole(readDashboardSession(req), allowedRoles)) {

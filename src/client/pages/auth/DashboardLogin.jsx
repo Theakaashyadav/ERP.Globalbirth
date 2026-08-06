@@ -20,6 +20,11 @@ const labels = {
     title: "Admin Login",
     subtitle: "Sign in once to securely access every management dashboard.",
     redirect: "/admin"
+  },
+  ceo: {
+    title: "CEO Login",
+    subtitle: "Sign in to view attendance, employee records and executive alerts.",
+    redirect: "/ceo"
   }
 };
 

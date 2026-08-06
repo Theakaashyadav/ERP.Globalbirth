@@ -9,8 +9,8 @@ import RecipientSelector, { emptyAudience } from "../../components/RecipientSele
 export default function BroadcastAlerts() {
   const [params] = useSearchParams();
   const requested = params.get("sender")?.toLowerCase();
-  const senderRole = ["admin", "hr", "marketing"].includes(requested) ? requested : "admin";
-  const dashboardPath = senderRole === "admin" ? "/admin" : senderRole === "hr" ? "/hr" : "/marketing";
+  const senderRole = ["admin", "hr", "marketing", "ceo"].includes(requested) ? requested : "admin";
+  const dashboardPath = senderRole === "admin" ? "/admin" : senderRole === "hr" ? "/hr" : senderRole === "ceo" ? "/ceo" : "/marketing";
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [items, setItems] = useState([]);

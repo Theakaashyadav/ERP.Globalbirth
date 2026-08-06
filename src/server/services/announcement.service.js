@@ -5,7 +5,7 @@ const { sendCommonAlert } = require("./push-notification.service");
 const clean = value => String(value || "").trim();
 const unique = values => [...new Set((Array.isArray(values) ? values : []).map(clean).filter(Boolean))];
 const map = item => ({ id: String(item._id), subject: item.subject, message: item.message, sentByRole: item.sentByRole, sentByName: item.sentByName, createdAt: item.createdAt, allEmployees: item.allEmployees !== false, targetDepartments: item.targetDepartments || [], targetEmployeeIds: item.targetEmployeeIds || [] });
-const roles = ["admin", "hr", "marketing"];
+const roles = ["admin", "hr", "marketing", "ceo"];
 const cutoff = () => new Date(Date.now() - 48 * 60 * 60 * 1000);
 async function purgeExpired() { await Announcement.deleteMany({ createdAt: { $lt: cutoff() } }); }
 function audience(payload) {

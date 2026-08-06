@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const DashboardCredential = require("../models/DashboardCredential");
 const { dashboardUsers } = require("../config");
 const { connectDatabase } = require("../db/connection");
-const ROLES = ["admin", "hr", "marketing"];
+const ROLES = ["admin", "hr", "marketing", "ceo"];
 
 async function ensureCredentials() {
   await connectDatabase();
