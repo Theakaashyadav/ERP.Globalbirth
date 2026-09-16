@@ -80,6 +80,10 @@ const employeeSchema = new mongoose.Schema(
       default: "",
       trim: true
     },
+    allowNewDeviceRegistration: {
+      type: Boolean,
+      default: false
+    },
     pushToken: {
       type: String,
       default: "",

@@ -18,9 +18,15 @@ function createDashboardSession(user) {
   return `${payload}.${sign(payload)}`;
 }
 
-function createEmployeeSession(employeeId) {
+function createEmployeeSession(employeeId, androidId = "") {
   if (!secret) throw new Error("DASHBOARD_SESSION_SECRET or CLIENT_API_KEY must be configured.");
-  const payload = encode({ employeeId, type: "employee", exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS });
+  const deviceId = String(androidId || "").trim();
+  const payload = encode({
+    employeeId,
+    type: "employee",
+    ...(deviceId ? { androidId: deviceId } : {}),
+    exp: Math.floor(Date.now() / 1000) + SESSION_TTL_SECONDS
+  });
   return `${payload}.${sign(payload)}`;
 }
 

@@ -135,6 +135,50 @@ button {
   box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
 }
 
+.deviceRegistrationControl {
+  padding: 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
+  background: #f8fafc;
+  transition: .2s ease;
+}
+
+.deviceRegistrationControl.enabled {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, .08);
+}
+
+.deviceRegistrationControl label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.deviceRegistrationControl input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  accent-color: #2563eb;
+}
+
+.deviceRegistrationControl span {
+  display: grid;
+  gap: 5px;
+}
+
+.deviceRegistrationControl b {
+  color: #1e293b;
+}
+
+.deviceRegistrationControl small {
+  color: #64748b;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
 .btn {
   min-height: 46px;
   border: 0;

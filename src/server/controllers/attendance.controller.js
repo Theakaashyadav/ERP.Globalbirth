@@ -103,11 +103,25 @@ async function handleAttendanceAction(req, res) {
     const androidId = String(req.body.androidId || "").trim();
     const browserSession = readEmployeeSession(req);
     await connectDatabase();
-    const employee = browserSession?.employeeId === employeeId
-      ? await Employee.findOne({ employeeId, status: "Active" }).select({ _id: 1 }).lean()
-      : employeeId && androidId
-      ? await Employee.findOne({ employeeId, registeredAndroidId: androidId, status: "Active" }).select({ _id: 1 }).lean()
-      : null;
+    let employee = null;
+    if (browserSession?.employeeId === employeeId) {
+      const sessionAndroidId = String(browserSession.androidId || "").trim();
+      if (sessionAndroidId) {
+        if (androidId === sessionAndroidId) {
+          employee = await Employee.findOne({
+            employeeId,
+            registeredAndroidId: sessionAndroidId,
+            status: "Active"
+          }).select({ _id: 1 }).lean();
+        }
+      } else {
+        employee = await Employee.findOne({ employeeId, status: "Active" }).select({ _id: 1 }).lean();
+      }
+    } else if (employeeId && androidId) {
+      employee = await Employee.findOne({ employeeId, registeredAndroidId: androidId, status: "Active" })
+        .select({ _id: 1 })
+        .lean();
+    }
     if (!employee) {
       res.status(401).json({ success: false, message: "Employee device verification failed. Sign in again or contact HR." });
       return;

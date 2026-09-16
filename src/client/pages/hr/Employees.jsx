@@ -18,7 +18,9 @@ const blankEmployee = {
   salary: "",
   shift: "Morning Shift",
   status: "Active",
-  address: ""
+  address: "",
+  allowNewDeviceRegistration: false,
+  originalAllowNewDeviceRegistration: false
 };
 
 export default function Employees() {
@@ -59,7 +61,7 @@ export default function Employees() {
         return;
       }
 
-      toast.success("Employee updated successfully.");
+      toast.success(result.message || "Employee updated successfully.");
       setEditing(null);
       loadEmployees();
     } catch (error) {
@@ -132,7 +134,7 @@ export default function Employees() {
                     <td>{emp.joiningDate || "-"}</td>
                     <td><span className={"status " + (normalize(emp.status) === "active" ? "active" : normalize(emp.status) === "on leave" ? "leave" : "inactive")}>{emp.status || "Active"}</span></td>
                     <td>
-                      <button className="btn" onClick={() => setEditing({ ...blankEmployee, ...emp })} title="Edit"><Edit3 size={16} /></button>{" "}
+                      <button className="btn" onClick={() => setEditing({ ...blankEmployee, ...emp, originalAllowNewDeviceRegistration: Boolean(emp.allowNewDeviceRegistration) })} title="Edit"><Edit3 size={16} /></button>{" "}
                       <button className="btn red" onClick={() => removeEmployee(emp.employeeId)} title="Delete"><Trash2 size={16} /></button>
                     </td>
                   </tr>
@@ -164,6 +166,19 @@ export default function Employees() {
               <div className="field"><label>Work Shift</label><select value={editing.shift} onChange={e => updateEditing("shift", e.target.value)}><option>Morning Shift</option><option>Evening Shift</option><option>Night Shift</option><option>Flexible Shift</option></select></div>
               <div className="field"><label>Status</label><select value={editing.status} onChange={e => updateEditing("status", e.target.value)}><option>Active</option><option>Inactive</option><option>On Leave</option></select></div>
               <div className="field fullSpan"><label>Address</label><textarea value={editing.address} onChange={e => updateEditing("address", e.target.value)} /></div>
+              <div className={`deviceRegistrationControl fullSpan${editing.allowNewDeviceRegistration ? " enabled" : ""}`}>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(editing.allowNewDeviceRegistration)}
+                    onChange={e => updateEditing("allowNewDeviceRegistration", e.target.checked)}
+                  />
+                  <span>
+                    <b>Allow employee to register a new device</b>
+                    <small>One-time permission. After a valid PIN login from a different Android phone, that phone replaces the current device and this permission turns off automatically.</small>
+                  </span>
+                </label>
+              </div>
               <button className="btn full fullSpan"><Save size={18} /> Update Employee</button>
             </form>
           </section>

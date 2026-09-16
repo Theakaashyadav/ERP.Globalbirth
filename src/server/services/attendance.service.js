@@ -112,7 +112,8 @@ function mapEmployee(employee) {
     joiningDate: toDateInputValue(employee.joiningDate),
     salary: employee.salary || "",
     shift: employee.shift || "",
-    status: employee.status || "Inactive"
+    status: employee.status || "Inactive",
+    allowNewDeviceRegistration: Boolean(employee.allowNewDeviceRegistration)
   };
 }
 
@@ -401,25 +402,71 @@ async function loginMobileEmployee(payload) {
     return { success: false, message: "Your employee account is inactive. Contact HR for approval." };
   }
 
+  let authenticatedEmployee = employee;
   const registeredAndroidId = cleanText(employee.registeredAndroidId);
   if (registeredAndroidId && registeredAndroidId !== androidId) {
-    return { success: false, message: "This account is registered to another Android device. Contact HR to reset it." };
+    if (!employee.allowNewDeviceRegistration) {
+      return { success: false, message: "This account is registered to another Android device. Contact HR to allow a new device." };
+    }
+
+    const reboundEmployee = await Employee.findOneAndUpdate(
+      {
+        _id: employee._id,
+        registeredAndroidId: employee.registeredAndroidId,
+        status: "Active",
+        allowNewDeviceRegistration: true
+      },
+      {
+        $set: {
+          registeredAndroidId: androidId,
+          allowNewDeviceRegistration: false
+        },
+        $unset: {
+          registeredIpAddress: "",
+          registeredFingerprintId: "",
+          pushToken: ""
+        }
+      },
+      { new: true }
+    ).lean();
+
+    if (!reboundEmployee) {
+      const currentEmployee = await Employee.findById(employee._id).lean();
+      if (!currentEmployee || cleanText(currentEmployee.status).toLowerCase() !== "active" || cleanText(currentEmployee.registeredAndroidId) !== androidId) {
+        return { success: false, message: "New-device permission was already used or cancelled. Contact HR to enable it again." };
+      }
+      authenticatedEmployee = currentEmployee;
+    } else {
+      authenticatedEmployee = reboundEmployee;
+    }
   }
 
   if (!registeredAndroidId) {
-    await Employee.updateOne(
-      { _id: employee._id, $or: [{ registeredAndroidId: "" }, { registeredAndroidId: { $exists: false } }] },
+    const boundEmployee = await Employee.findOneAndUpdate(
+      { _id: employee._id, status: "Active", $or: [{ registeredAndroidId: "" }, { registeredAndroidId: null }, { registeredAndroidId: { $exists: false } }] },
       {
-        $set: { registeredAndroidId: androidId },
-        $unset: { registeredIpAddress: "", registeredFingerprintId: "" }
+        $set: { registeredAndroidId: androidId, allowNewDeviceRegistration: false },
+        $unset: { registeredIpAddress: "", registeredFingerprintId: "", pushToken: "" }
+      },
+      { new: true }
+    ).lean();
+
+    if (!boundEmployee) {
+      const currentEmployee = await Employee.findById(employee._id).lean();
+      if (!currentEmployee || cleanText(currentEmployee.status).toLowerCase() !== "active" || cleanText(currentEmployee.registeredAndroidId) !== androidId) {
+        return { success: false, message: "This account was just registered on another Android device. Contact HR if you changed phones." };
       }
-    );
-    employee.registeredAndroidId = androidId;
-    delete employee.registeredIpAddress;
-    delete employee.registeredFingerprintId;
+      authenticatedEmployee = currentEmployee;
+    } else {
+      authenticatedEmployee = boundEmployee;
+    }
   }
 
-  return { success: true, token: createEmployeeSession(employee.employeeId), employee: mapEmployee(employee) };
+  return {
+    success: true,
+    token: createEmployeeSession(authenticatedEmployee.employeeId, androidId),
+    employee: mapEmployee(authenticatedEmployee)
+  };
 }
 
 async function registerPushToken(payload) {
@@ -452,7 +499,7 @@ async function validateMobileSession(payload) {
     return { success: false, message: "Android device verification failed. Contact HR to reset the registered device." };
   }
 
-  return { success: true, token: createEmployeeSession(employee.employeeId), employee: mapEmployee(employee) };
+  return { success: true, token: createEmployeeSession(employee.employeeId, androidId), employee: mapEmployee(employee) };
 }
 
 async function loginDashboardUser(payload) {
@@ -517,28 +564,55 @@ async function updateEmployee(payload) {
     if (!teamLead) return { success: false, message: "Select an active Sales TL for this Executive." };
   }
 
+  const hasNewDeviceRegistrationSetting = Object.prototype.hasOwnProperty.call(payload, "allowNewDeviceRegistration");
+  const allowNewDeviceRegistration = payload.allowNewDeviceRegistration === true;
+  const employeeUpdates = {
+    fullName: cleanText(payload.fullName),
+    phone: cleanText(payload.phone),
+    email: cleanText(payload.email),
+    department,
+    designation: department === "Sales" ? designation : "",
+    teamLeadId: department === "Sales" && designation === "Executive" ? teamLeadId : "",
+    joiningDate: toDateOrNull(payload.joiningDate),
+    salary: toNumberOrNull(payload.salary),
+    shift: cleanText(payload.shift),
+    status: cleanText(payload.status) || "Inactive",
+    address: cleanText(payload.address)
+  };
+  if (hasNewDeviceRegistrationSetting) {
+    employeeUpdates.allowNewDeviceRegistration = allowNewDeviceRegistration;
+  }
+
+  const requirePendingDeviceRegistration = hasNewDeviceRegistrationSetting
+    && allowNewDeviceRegistration
+    && payload.originalAllowNewDeviceRegistration === true;
+  const employeeFilter = { employeeId };
+  if (requirePendingDeviceRegistration) {
+    employeeFilter.allowNewDeviceRegistration = true;
+  }
+
   const result = await Employee.updateOne(
-    { employeeId },
+    employeeFilter,
     {
-      $set: {
-        fullName: cleanText(payload.fullName),
-        phone: cleanText(payload.phone),
-        email: cleanText(payload.email),
-        department,
-        designation: department === "Sales" ? designation : "",
-        teamLeadId: department === "Sales" && designation === "Executive" ? teamLeadId : "",
-        joiningDate: toDateOrNull(payload.joiningDate),
-        salary: toNumberOrNull(payload.salary),
-        shift: cleanText(payload.shift),
-        status: cleanText(payload.status) || "Inactive",
-        address: cleanText(payload.address)
-      }
+      $set: employeeUpdates
     }
   );
 
+  if (result.matchedCount === 0) {
+    const employeeStillExists = await Employee.exists({ employeeId });
+    return {
+      success: false,
+      message: employeeStillExists && requirePendingDeviceRegistration
+        ? "The employee's device registration changed while this form was open. Reopen the employee and try again."
+        : "Employee not found."
+    };
+  }
+
   return {
-    success: result.matchedCount > 0,
-    message: result.matchedCount > 0 ? "Employee updated." : "Employee not found."
+    success: true,
+    message: hasNewDeviceRegistrationSetting && allowNewDeviceRegistration
+      ? "Employee updated. One-time new-device registration is enabled."
+      : "Employee updated."
   };
 }
 
