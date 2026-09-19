@@ -26,8 +26,10 @@ function parseSheetUrl(value) {
   if (url.protocol !== "https:" || url.hostname !== "docs.google.com") throw new Error("Paste a Google Sheets link from docs.google.com.");
   const match = url.pathname.match(/^\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
   if (!match) throw new Error("The link does not contain a spreadsheet ID.");
-  const gid = url.searchParams.get("gid") || new URLSearchParams(url.hash.slice(1)).get("gid");
-  if (gid && !/^\d+$/.test(gid)) throw new Error("The sheet tab ID in the link is invalid.");
+  // The hash tracks the tab currently open in Google Sheets. Shared links can
+  // also contain an older query gid, so prefer the visible tab in the hash.
+  const gid = new URLSearchParams(url.hash.slice(1)).get("gid") || url.searchParams.get("gid");
+  if (gid && (!/^\d+$/.test(gid) || !Number.isSafeInteger(Number(gid)))) throw new Error("The sheet tab ID in the link is invalid.");
   return { sheetUrl, spreadsheetId: match[1], sheetTabId: gid ? Number(gid) : null };
 }
 
@@ -124,7 +126,7 @@ function leadData(fields) {
   const find = patterns => entries.find(([label, value]) => value && patterns.some(pattern => pattern.test(normalizeHeader(label))))?.[1] || "";
   const name = find([/^fullname$/, /^leadname$/, /^name$/, /^customername$/, /^firstname$/]);
   const lastName = find([/^lastname$/]);
-  const phone = find([/^phonenumber$/, /^phone$/, /^mobilenumber$/, /^mobile$/, /^contactnumber$/, /^contact$/, /^whatsappnumber$/]);
+  const phone = find([/^phonenumber$/, /^phone$/, /^phoneno$/, /^mobilenumber$/, /^mobile$/, /^mobileno$/, /^contactnumber$/, /^contact$/, /^contactno$/, /^whatsappnumber$/, /^whatsapp$/, /^whatsappno$/]);
   const city = find([/^city$/, /^location$/]);
   return { name: clean(`${name} ${lastName}`) || "Lead", phone: clean(phone).replace(/\D/g, "").slice(-10), city };
 }

@@ -29,10 +29,12 @@ Never commit `.env`, Firebase service-account JSON, MongoDB credentials or signi
 
 ## Google Sheet lead connection
 
-1. In **Admin Control Center → Lead Sheet Connection**, paste the Google Sheet link, including the tab (`gid`) that receives leads from Meta.
+1. Open the tab that receives leads from Meta. In **Admin Control Center → Lead Sheet Connection**, paste its full Google Sheet URL, including `#gid=...` when shown. Keep a header row with a phone or mobile column near the top of that tab.
 2. Select the active Sales employees who should receive leads and save the connection.
 3. Click **Copy Apps Script code**. In that Sheet, open **Extensions → Apps Script**, replace the contents of `Code.gs` with the copied code, and save.
 4. In the Apps Script editor, select and run `setupGlobalOneLeadSync` once. Authorize the requested Google permissions. This installs the edit and one-minute time triggers. Use the connection status on the admin page to confirm a successful delivery.
+
+An entirely empty selected lead tab can be connected before Meta writes its first headers and lead. If setup says it cannot find lead column names in a populated tab, confirm that the saved URL points to the lead tab and that its headings include Phone or Mobile. Save the corrected URL, copy the newly generated script, and run setup again.
 
 Manual edits can send a new row when the edit trigger runs. Meta and other API integrations may add rows without firing a Google Sheets edit trigger, so the one-minute trigger checks for those rows and posts them to the web API. Keep the script installed on the selected Sheet and tab. No service-account sharing or Google Sheets API setup is required for this Apps Script connection.
 

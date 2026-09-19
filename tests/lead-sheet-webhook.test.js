@@ -51,8 +51,9 @@ test("Apps Script webhook authenticates the configured Sheet and assigns each ro
 
   try {
     const { updateLeadSheetSettings, getLeadSheetSettings, receiveLeadSheetWebhook } = require("../src/server/services/lead-sheet.service");
-    const saved = await updateLeadSheetSettings({ sheetUrl: "https://docs.google.com/spreadsheets/d/test123/edit#gid=42", employeeIds: ["EMP1", "EMP2"] });
+    const saved = await updateLeadSheetSettings({ sheetUrl: "https://docs.google.com/spreadsheets/d/test123/edit?gid=0#gid=42", employeeIds: ["EMP1", "EMP2"] });
     assert.equal(saved.success, true);
+    assert.equal(settings.sheetTabId, 42, "the visible tab in #gid takes precedence over an older query gid");
     assert.match(saved.data.webhookSecret, /^[a-f0-9]{64}$/);
     assert.equal((await getLeadSheetSettings()).data.webhookSecret, saved.data.webhookSecret);
     process.env.FIREBASE_SERVICE_ACCOUNT_JSON = "{invalid-json";

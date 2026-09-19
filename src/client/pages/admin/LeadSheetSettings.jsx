@@ -90,12 +90,14 @@ export default function LeadSheetSettings() {
     <section className="panel leadSheetInstructions">
       <h2>Connect your Google Sheet</h2>
       <ol>
-        <li>Paste the Google Sheet link. Its first row must contain column names, including a phone or mobile number column.</li>
+        <li>Open the tab where Meta saves leads, then paste its full Google Sheet URL here (including <b>#gid=...</b> when shown). Keep a header row with a phone or mobile column near the top.</li>
         <li>Select the employees who should receive leads, then save the connection.</li>
         <li>Copy the Apps Script below. In the connected Sheet, open <b>Extensions &gt; Apps Script</b>, replace the code in <b>Code.gs</b>, and save it.</li>
         <li>Choose <b>setupGlobalOneLeadSync</b> in the Apps Script function menu, click <b>Run</b>, and approve Google's permissions once. The script then starts sending leads automatically.</li>
       </ol>
       <p className="muted">Google Form submissions and manual Sheet edits can run right away. Meta and other API writes do not fire Google Sheet edit triggers, so the script checks for them every minute.</p>
+      <p className="muted">A completely empty lead tab can be connected before the first Meta lead arrives. The script waits for Meta to add its column headings.</p>
+      <p className="muted">If setup cannot find the lead columns, check that the saved URL points to the lead tab. Save the corrected link, copy the new script, and run setup again.</p>
     </section>
 
     <form className="panel leadSheetForm" onSubmit={save}>
@@ -115,6 +117,6 @@ export default function LeadSheetSettings() {
       {window.location.protocol !== "https:" && <p className="leadSheetScriptNotice">Open the hosted HTTPS admin dashboard to copy the script. Google Apps Script cannot call a local or HTTP web address.</p>}
     </section>
 
-    <section className="panel leadSheetStatus"><h2>Connection status</h2><div><span>Status</span><b>{statusLabel(settings?.status)}</b></div><div><span>Last Sheet API call</span><b>{readableTime(settings?.lastWebhookAt || settings?.lastSyncAt)}</b></div>{settings?.lastWebhookStatus && <div><span>Last API result</span><b>{settings.lastWebhookStatus}</b></div>}{settings?.lastImportedCount != null && <div><span>Leads assigned in last check</span><b>{settings.lastImportedCount}</b></div>}{settings?.lastPendingCount != null && <div><span>Rows waiting for a valid phone number</span><b>{settings.lastPendingCount}</b></div>}{settings?.lastError && <p className="leadSheetError">{settings.lastError}</p>}</section>
+    <section className="panel leadSheetStatus"><h2>Connection status</h2><div><span>Status</span><b>{statusLabel(settings?.status)}</b></div><div><span>Last Sheet API call</span><b>{readableTime(settings?.lastWebhookAt)}</b></div>{settings?.lastWebhookStatus && <div><span>Last API result</span><b>{settings.lastWebhookStatus}</b></div>}{settings?.lastImportedCount != null && <div><span>Leads assigned in last check</span><b>{settings.lastImportedCount}</b></div>}{settings?.lastPendingCount != null && <div><span>Rows waiting for a valid phone number</span><b>{settings.lastPendingCount}</b></div>}{settings?.lastError && <p className="leadSheetError">{settings.lastError}</p>}</section>
   </div></main>;
 }
