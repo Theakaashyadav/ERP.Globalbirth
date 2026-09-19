@@ -11,10 +11,9 @@ const TARGET = Object.freeze({
   name: "suren",
   phone: "9953820028",
   employeeId: "EMP497248",
-  employeeName: "Govind Kumar",
-  expectedCount: 61
+  employeeName: "Govind Kumar"
 });
-const CONFIRMATION = `DELETE 60 LEADS KEEP ${TARGET.leadId}`;
+const MAX_EXPECTED_COUNT = 10000;
 
 function digits(value) {
   return String(value || "").replace(/\D/g, "").slice(-10);
@@ -27,16 +26,17 @@ function folded(value) {
 function validRequest(payload) {
   return payload && payload.leadId === TARGET.leadId &&
     folded(payload.name) === TARGET.name && digits(payload.phone) === TARGET.phone &&
-    payload.employeeId === TARGET.employeeId && payload.expectedCount === TARGET.expectedCount &&
-    (payload.dryRun === true || payload.confirmation === CONFIRMATION);
+    payload.employeeId === TARGET.employeeId && Number.isSafeInteger(payload.expectedCount) &&
+    payload.expectedCount >= 2 && payload.expectedCount <= MAX_EXPECTED_COUNT &&
+    (payload.dryRun === true || payload.confirmation === `DELETE ${payload.expectedCount - 1} LEADS KEEP ${TARGET.leadId}`);
 }
 
-async function readAndValidate(session) {
+async function readAndValidate(expectedCount, session) {
   const leadQuery = Lead.find({});
   if (session) leadQuery.session(session);
   const leads = await leadQuery.lean();
-  if (leads.length !== TARGET.expectedCount) {
-    throw new Error(`Expected ${TARGET.expectedCount} leads; found ${leads.length}. No leads were changed.`);
+  if (leads.length !== expectedCount) {
+    throw new Error(`Expected ${expectedCount} leads; found ${leads.length}. No leads were changed.`);
   }
   const matchingPeople = leads.filter(lead => folded(lead.name) === TARGET.name && digits(lead.phone) === TARGET.phone);
   const matchingIds = leads.filter(lead => lead.leadId === TARGET.leadId);
@@ -70,12 +70,12 @@ function preview({ lead, employee, count }) {
 
 async function retainSurenAndAssignGovind(payload = {}) {
   if (!validRequest(payload)) {
-    return { success: false, message: "Exact lead, employee, expectedCount: 61, and execution confirmation are required." };
+    return { success: false, message: "Exact lead and employee, expectedCount from 2 to 10000, and matching execution confirmation are required." };
   }
   await connectDatabase();
   if (payload.dryRun === true) {
     try {
-      return { success: true, data: { ...preview(await readAndValidate()), dryRun: true }, message: "Dry run passed; no records were changed." };
+      return { success: true, data: { ...preview(await readAndValidate(payload.expectedCount)), dryRun: true }, message: "Dry run passed; no records were changed." };
     } catch (error) {
       return { success: false, message: error.message };
     }
@@ -87,7 +87,7 @@ async function retainSurenAndAssignGovind(payload = {}) {
   const session = await mongoose.startSession();
   try {
     await session.withTransaction(async () => {
-      const state = await readAndValidate(session);
+      const state = await readAndValidate(payload.expectedCount, session);
       const { lead, employee } = state;
       const assignedAt = new Date();
       const sheetFields = lead.sheetFields instanceof Map ? Object.fromEntries(lead.sheetFields) : { ...(lead.sheetFields || {}) };
@@ -117,7 +117,7 @@ async function retainSurenAndAssignGovind(payload = {}) {
       );
       if (update.matchedCount !== 1) throw new Error("Suren's lead changed during cleanup. The transaction was cancelled.");
       const deleted = await Lead.deleteMany({ _id: { $ne: lead._id } }, { session });
-      if (deleted.deletedCount !== TARGET.expectedCount - 1) {
+      if (deleted.deletedCount !== payload.expectedCount - 1) {
         throw new Error("The deleted lead count changed during cleanup. The transaction was cancelled.");
       }
       const remainingQuery = Lead.find({});

@@ -83,16 +83,30 @@ test("one-time cleanup checks all identities, preserves Suren, and notifies Govi
     assert.equal(inactiveEmployee.success, false);
     employee.status = "Active";
 
-    const wrongCount = await retainSurenAndAssignGovind({ ...request, expectedCount: 60, confirmation: `DELETE 60 LEADS KEEP ${targetId}` });
+    const wrongCount = await retainSurenAndAssignGovind({ ...request, expectedCount: 60, confirmation: `DELETE 59 LEADS KEEP ${targetId}` });
     assert.equal(wrongCount.success, false);
+    assert.match(wrongCount.message, /found 61/);
     assert.equal(leads.length, 61);
     const wrongIdentity = await retainSurenAndAssignGovind({ ...request, leadId: "OTHER0", confirmation: `DELETE 60 LEADS KEEP ${targetId}` });
     assert.equal(wrongIdentity.success, false);
     assert.equal(leads.length, 61);
+    const unreasonableCount = await retainSurenAndAssignGovind({ ...request, expectedCount: 10001, dryRun: true });
+    assert.equal(unreasonableCount.success, false);
 
-    const result = await retainSurenAndAssignGovind({ ...request, confirmation: `DELETE 60 LEADS KEEP ${targetId}` });
+    leads.push({ _id: "new-arrival", leadId: "NEW-ARRIVAL", name: "Other", phone: "9000000000" });
+    const increasedRequest = { ...request, expectedCount: 62 };
+    const increasedPreview = await retainSurenAndAssignGovind({ ...increasedRequest, dryRun: true });
+    assert.equal(increasedPreview.success, true);
+    assert.equal(increasedPreview.data.wouldDelete, 61);
+    const staleExecution = await retainSurenAndAssignGovind({ ...request, confirmation: `DELETE 60 LEADS KEEP ${targetId}` });
+    assert.equal(staleExecution.success, false);
+    assert.match(staleExecution.message, /found 62/);
+    assert.equal(leads.length, 62);
+
+    const result = await retainSurenAndAssignGovind({ ...increasedRequest, confirmation: `DELETE 61 LEADS KEEP ${targetId}` });
     assert.equal(result.success, true);
-    assert.equal(result.data.deleted, 60);
+    assert.equal(result.data.before, 62);
+    assert.equal(result.data.deleted, 61);
     assert.equal(result.data.after, 1);
     assert.equal(result.data.previousEmployeeId, "EMP524098");
     assert.equal(result.data.sheetTabId, 42);
