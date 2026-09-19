@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { BarChart3, BellRing, Bug, Crown, Database, KeyRound, LogOut, Megaphone, PhoneCall, Rocket, Settings2, ShieldCheck, Users, Wifi, WifiOff } from "lucide-react";
+import { BarChart3, BellRing, Bug, Crown, Database, FileSpreadsheet, KeyRound, LogOut, Megaphone, PhoneCall, Rocket, Settings2, ShieldCheck, Users, Wifi, WifiOff } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 import { logout } from "../../auth.js";
 
@@ -9,6 +9,7 @@ const dashboardGroups = [
     { title:"Mobile App Feedback", description:"Review reported errors, attempted actions and device context.", path:"/admin/app-feedback", icon:Bug, tone:"orange" }
   ]},
   { title:"Workforce Operations", subtitle:"People, attendance and sales management", items:[
+    { title:"Lead Sheet Connection", description:"Connect a Google Sheet and choose who receives each new lead.", path:"/admin/lead-sheet", icon:FileSpreadsheet, tone:"green" },
     { title:"HR Dashboard", description:"Employees, attendance, reports, call activity and salary management.", path:"/hr", icon:Users, tone:"blue" },
     { title:"Marketing Dashboard", description:"Manage leads, assignments, team leaders and sales follow-ups.", path:"/marketing", icon:Megaphone, tone:"purple" },
     { title:"CEO Dashboard", description:"Open the executive view for attendance, employees and company alerts.", path:"/ceo", icon:Crown, tone:"green" },

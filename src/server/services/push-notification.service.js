@@ -75,7 +75,7 @@ async function sendLeadAssignment(employee, lead, assignedBy) {
         leadId: String(lead.leadId),
         phone: String(lead.phone),
         title: "New Lead",
-        body: "Call Within 30 Minutes"
+        body: "A new lead has been assigned to you"
       },
       android: { priority: "high" }
     });

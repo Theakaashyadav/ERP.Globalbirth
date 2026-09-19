@@ -9,12 +9,6 @@ const officeWifi = require("./office-wifi.service");
 const { sendLeadAssignment, sendEmployeeTestPush } = require("./push-notification.service");
 const { hasEmployeeFeature } = require("./mobile-feature.service");
 
-const DAILY_LEAD_CALL_TARGET = 3;
-const LEAD_CALL_DAYS_TARGET = 4;
-const CONNECTED_FOLLOW_UP_HOURS = 48;
-const MAX_ACTIVE_LEADS_PER_EMPLOYEE = 50;
-const FIRST_CALL_DEADLINE_MS = 30 * 60 * 1000;
-
 function cleanText(value) {
   return String(value || "").trim();
 }
@@ -65,24 +59,7 @@ async function canUseLeadFeatures(employeeId) {
 }
 
 async function returnExpiredLeads() {
-  const now = new Date();
-  await Lead.updateMany(
-    { archivedAt: null, returnedToMarketingAt: null, firstCallDeadline: { $lte: now }, securedAt: null, firstCallAt: null, assignedEmployeeId: { $ne: "" } },
-    {
-      $set: {
-        assignedEmployeeId: "",
-        marketingAssignedTlId: "",
-        assignedAt: null,
-        assignmentStage: "Marketing Queue",
-        firstCallDeadline: null,
-        firstCallAt: null,
-        securedAt: null,
-        securedByEmployeeId: "",
-        returnedToMarketingAt: now,
-        status: "Unassigned"
-      }
-    }
-  );
+  // Assignment is permanent while lead rules are on hold.
 }
 
 async function expireOverdueLeadAssignments() {
@@ -130,7 +107,6 @@ function mapTeamMember(employee) {
 }
 
 function getLeadAttemptStats(lead) {
-  const start = lead.assignedAt ? new Date(lead.assignedAt) : new Date(lead.createdAt || Date.now());
   const todayKey = toDateKey(new Date());
   const attemptsByDate = new Map();
 
@@ -153,28 +129,7 @@ function getLeadAttemptStats(lead) {
     day.totalDurationSeconds += Number(attempt.durationSeconds || 0);
   }
 
-  const daily = [];
-  let completedDays = 0;
-
-  for (let i = 0; i < LEAD_CALL_DAYS_TARGET; i += 1) {
-    const date = new Date(start);
-    date.setDate(start.getDate() + i);
-    const key = toDateKey(date);
-    const day = attemptsByDate.get(key) || {
-      date: key,
-      attempts: 0,
-      connected: 0,
-      totalDurationSeconds: 0
-    };
-    const complete = day.attempts >= DAILY_LEAD_CALL_TARGET;
-    if (complete) completedDays += 1;
-    daily.push({
-      ...day,
-      requiredAttempts: DAILY_LEAD_CALL_TARGET,
-      complete
-    });
-  }
-
+  const daily = [...attemptsByDate.values()].sort((a, b) => a.date.localeCompare(b.date));
   const today = attemptsByDate.get(todayKey) || { attempts: 0, connected: 0, totalDurationSeconds: 0 };
   const totalAttempts = (lead.attempts || []).length;
   const connectedAttempts = (lead.attempts || []).filter(attempt => attempt.connected).length;
@@ -185,33 +140,24 @@ function getLeadAttemptStats(lead) {
     .filter(attempt => attempt.connected)
     .sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt))[0];
   const isConnected = connectedAttempts > 0;
-  const nextRequiredCallAt = isConnected && lastAttempt
-    ? new Date(new Date(lastAttempt.calledAt).getTime() + CONNECTED_FOLLOW_UP_HOURS * 60 * 60 * 1000)
-    : null;
-  const followUpCallOverdue = Boolean(nextRequiredCallAt && nextRequiredCallAt.getTime() <= Date.now());
-  const hoursUntilNextRequiredCall = nextRequiredCallAt
-    ? Math.max(Math.ceil((nextRequiredCallAt.getTime() - Date.now()) / (60 * 60 * 1000)), 0)
-    : null;
-
   return {
     daily,
     totalAttempts,
     connectedAttempts,
-    completedDays,
+    completedDays: 0,
     todayAttempts: today.attempts,
-    todayRemainingAttempts: isConnected ? (followUpCallOverdue ? 1 : 0) : Math.max(DAILY_LEAD_CALL_TARGET - today.attempts, 0),
-    archiveEligible: !isConnected && completedDays >= LEAD_CALL_DAYS_TARGET,
-    callMode: isConnected ? "connected_48h" : "not_connected_daily",
+    todayRemainingAttempts: 0,
+    archiveEligible: false,
+    callMode: "tracking_only",
     isConnected,
-    dailyCallTarget: isConnected ? 1 : DAILY_LEAD_CALL_TARGET,
-    callDaysTarget: LEAD_CALL_DAYS_TARGET,
-    connectedFollowUpHours: CONNECTED_FOLLOW_UP_HOURS,
-    nextRequiredCallAt: nextRequiredCallAt ? nextRequiredCallAt.toISOString() : null,
-    hoursUntilNextRequiredCall,
-    followUpCallOverdue,
-    requirementSummary: isConnected
-      ? (followUpCallOverdue ? "Follow-up call is due now" : `Next call required within ${hoursUntilNextRequiredCall} hours`)
-      : `${Math.max(DAILY_LEAD_CALL_TARGET - today.attempts, 0)} of ${DAILY_LEAD_CALL_TARGET} calls remaining today; ${completedDays}/${LEAD_CALL_DAYS_TARGET} days complete`,
+    dailyCallTarget: null,
+    callDaysTarget: null,
+    connectedFollowUpHours: null,
+    nextRequiredCallAt: null,
+    hoursUntilNextRequiredCall: null,
+    followUpCallOverdue: false,
+    requirementSummary: "Lead call rules are on hold.",
+    rulesOnHold: true,
     lastCallAt: lastAttempt ? lastAttempt.calledAt : null,
     lastConnectedAt: lastConnected ? lastConnected.calledAt : null
   };
@@ -228,19 +174,21 @@ function mapLead(lead, employeesById = new Map()) {
     phone: lead.phone,
     city: lead.city || "",
     source: lead.source || "",
+    sheetFields: lead.sheetFields instanceof Map ? Object.fromEntries(lead.sheetFields) : (lead.sheetFields || {}),
+    sheetFieldOrder: lead.sheetFieldOrder?.length ? lead.sheetFieldOrder : Object.keys(lead.sheetFields || {}),
     assignedEmployeeId: lead.assignedEmployeeId,
     assignedEmployeeName: assignedEmployee?.fullName || "",
     assignedAt: lead.assignedAt ? lead.assignedAt.toISOString() : "",
     marketingAssignedTlId: lead.marketingAssignedTlId || "",
     marketingAssignedTlName: marketingAssignedTl?.fullName || "",
     assignmentStage: lead.assignmentStage || "TL",
-    firstCallDeadline: lead.firstCallDeadline ? lead.firstCallDeadline.toISOString() : "",
+    firstCallDeadline: "",
     firstCallAt: lead.firstCallAt ? lead.firstCallAt.toISOString() : "",
     securedAt: lead.securedAt ? lead.securedAt.toISOString() : (lead.firstCallAt ? lead.firstCallAt.toISOString() : ""),
     securedByEmployeeId: lead.securedByEmployeeId || "",
     isSecured: Boolean(lead.securedAt || lead.firstCallAt),
     returnedToMarketingAt: lead.returnedToMarketingAt ? lead.returnedToMarketingAt.toISOString() : "",
-    deadlineRemainingSeconds: lead.firstCallDeadline && !lead.firstCallAt && !lead.returnedToMarketingAt ? Math.max(Math.floor((lead.firstCallDeadline.getTime() - Date.now()) / 1000), 0) : 0,
+    deadlineRemainingSeconds: 0,
     status: lead.status || "New",
     lastRemark: lead.lastRemark || "",
     nextFollowUpDate: toDateInputValue(lead.nextFollowUpDate),
@@ -622,13 +570,13 @@ async function deleteEmployee(payload) {
   const employeeId = cleanText(payload.employeeId);
   const [teamMembers, activeLeads] = await Promise.all([
     Employee.countDocuments({ teamLeadId: employeeId }),
-    Lead.countDocuments({ $or: [{ assignedEmployeeId: employeeId }, { marketingAssignedTlId: employeeId }], archivedAt: null })
+    Lead.countDocuments({ assignedEmployeeId: employeeId, archivedAt: null })
   ]);
   if (teamMembers > 0) {
     return { success: false, message: `Move ${teamMembers} Executive(s) to another TL before deleting this employee.` };
   }
   if (activeLeads > 0) {
-    return { success: false, message: `Reassign or archive ${activeLeads} active lead(s) before deleting this employee.` };
+    return { success: false, message: `This employee owns ${activeLeads} active lead(s). Lead ownership is permanent, so this employee cannot be deleted.` };
   }
   const result = await Employee.deleteOne({ employeeId });
 
@@ -836,10 +784,11 @@ async function getEmployeeLeads(payload) {
     success: true,
     data: mapped,
     limits: {
-      maxActiveLeads: MAX_ACTIVE_LEADS_PER_EMPLOYEE,
-      dailyCallTarget: DAILY_LEAD_CALL_TARGET,
-      callDaysTarget: LEAD_CALL_DAYS_TARGET,
-      connectedFollowUpHours: CONNECTED_FOLLOW_UP_HOURS
+      maxActiveLeads: null,
+      dailyCallTarget: null,
+      callDaysTarget: null,
+      connectedFollowUpHours: null,
+      leadRulesOnHold: true
     }
   };
 }
@@ -852,7 +801,7 @@ async function getTeamLeadWorkspaceLeads(payload) {
   if (!teamLead) return { success: false, message: "Active Sales TL not found." };
   const [executives, leads] = await Promise.all([
     Employee.find({ department: "Sales", designation: "Executive", teamLeadId, status: "Active" }).sort({ fullName: 1 }).lean(),
-    Lead.find({ marketingAssignedTlId: teamLeadId, assignedEmployeeId: { $ne: "" }, archivedAt: null }).sort({ assignedAt: -1 }).lean()
+    Lead.find({ assignedEmployeeId: teamLeadId, archivedAt: null }).sort({ assignedAt: -1 }).lean()
   ]);
   const people = [teamLead, ...executives];
   const employeesById = new Map(people.map(employee => [employee.employeeId, employee]));
@@ -865,6 +814,7 @@ async function getLeadDetails(payload) {
 
   const leadId = cleanText(payload.leadId);
   const employeeId = cleanText(payload.employeeId);
+  if (!employeeId) return { success: false, message: "Employee ID is required." };
   const query = { leadId };
 
   if (employeeId) {
@@ -872,11 +822,7 @@ async function getLeadDetails(payload) {
     if (!employee || !((await hasEmployeeFeature(employee, "leads")) || (await hasEmployeeFeature(employee, "alerts")))) {
       return { success: false, message: "Lead access is disabled for your role." };
     }
-    if (cleanText(employee.department).toLowerCase() === "sales" && cleanText(employee.designation).toLowerCase() === "tl") {
-      query.$or = [{ assignedEmployeeId: employeeId }, { marketingAssignedTlId: employeeId, assignedEmployeeId: { $ne: "" } }];
-    } else {
-      query.assignedEmployeeId = employeeId;
-    }
+    query.assignedEmployeeId = employeeId;
   }
 
   const lead = await Lead.findOne(query).lean();
@@ -915,18 +861,6 @@ async function assignLead(payload) {
     return { success: false, message: "Marketing can assign leads only to a Sales TL." };
   }
 
-  const activeLeadCount = await Lead.countDocuments({
-    assignedEmployeeId: employeeId,
-    archivedAt: null
-  });
-
-  if (activeLeadCount >= MAX_ACTIVE_LEADS_PER_EMPLOYEE) {
-    return {
-      success: false,
-      message: "Employee lead storage is full. Ask the employee to complete call targets before assigning new leads."
-    };
-  }
-
   const leadId = cleanText(payload.leadId) || "LEAD" + Date.now().toString().slice(-8);
 
   try {
@@ -939,7 +873,7 @@ async function assignLead(payload) {
       assignedEmployeeId: employee.employeeId,
       marketingAssignedTlId: employee.employeeId,
       assignmentStage: "TL",
-      firstCallDeadline: new Date(Date.now() + FIRST_CALL_DEADLINE_MS),
+      firstCallDeadline: null,
       firstCallAt: null,
       returnedToMarketingAt: null,
       status: "New",
@@ -971,6 +905,7 @@ async function recordLeadCall(payload) {
   const leadId = cleanText(payload.leadId);
   const employeeId = cleanText(payload.employeeId);
   const phone = normalizePhone(payload.phone);
+  if (!employeeId) return { success: false, message: "Employee ID is required." };
 
   if (employeeId && !(await canUseLeadFeatures(employeeId))) {
     return { success: false, message: "Lead call tracking is disabled for your role." };
@@ -1003,11 +938,6 @@ async function recordLeadCall(payload) {
   const currentLead = await Lead.findOne(query).lean();
   if (!currentLead) return { success: false, message: "Matching assigned lead not found." };
   const existingSecuredAt = currentLead.securedAt || currentLead.firstCallAt || null;
-  const withinSecurityWindow = !currentLead.firstCallDeadline || calledAt.getTime() <= new Date(currentLead.firstCallDeadline).getTime();
-  if (!existingSecuredAt && !withinSecurityWindow) {
-    await returnExpiredLeads();
-    return { success: false, message: "The 30-minute call window expired and the lead returned to Marketing." };
-  }
 
   const update = {
     $push: {
@@ -1049,44 +979,11 @@ async function getTeamExecutives(payload) {
 }
 
 async function assignLeadToExecutive(payload) {
-  await connectDatabase();
-  await returnExpiredLeads();
-  const leadId = cleanText(payload.leadId);
-  const teamLeadId = cleanText(payload.teamLeadId);
-  const executiveId = cleanText(payload.executiveId);
-  const teamLead = await Employee.findOne({ employeeId: teamLeadId, department: "Sales", designation: "TL", status: "Active" }).lean();
-  const executive = await Employee.findOne({ employeeId: executiveId, department: "Sales", designation: "Executive", teamLeadId, status: "Active" }).lean();
-  if (!teamLead || !executive) return { success: false, message: "Select an active Executive from this TL's team." };
-  const currentLead = await Lead.findOne({ leadId, assignedEmployeeId: teamLeadId, assignmentStage: "TL", returnedToMarketingAt: null, archivedAt: null }).lean();
-  if (!currentLead) return { success: false, message: "Lead is no longer assigned to this TL." };
-  const securedAt = currentLead.securedAt || currentLead.firstCallAt || null;
-  const deadlineActive = currentLead.firstCallDeadline && new Date(currentLead.firstCallDeadline).getTime() > Date.now();
-  if (!securedAt && !deadlineActive) {
-    await returnExpiredLeads();
-    return { success: false, message: "Lead was not called within 30 minutes and has returned to Marketing." };
-  }
-  const lead = await Lead.findOneAndUpdate(
-    { _id: currentLead._id, assignedEmployeeId: teamLeadId, returnedToMarketingAt: null },
-    { $set: { assignedEmployeeId: executive.employeeId, assignedAt: new Date(), assignmentStage: "Executive", firstCallDeadline: securedAt ? null : currentLead.firstCallDeadline, firstCallAt: null, securedAt, securedByEmployeeId: currentLead.securedByEmployeeId || (securedAt ? teamLeadId : ""), status: "Assigned to Executive" } },
-    { new: true }
-  ).lean();
-  if (lead) await sendLeadAssignment(executive, lead, teamLead.fullName || "your TL");
-  return { success: Boolean(lead), data: await mapLeadWithEmployeeNames(lead), message: lead ? (securedAt ? "Secured lead assigned to Executive. It will not return to Marketing." : "Lead assigned to Executive. They must call before the original 30-minute deadline.") : "Lead is no longer assigned to this TL." };
+  return { success: false, message: "Lead ownership is permanent; delegation is on hold." };
 }
 
 async function reassignReturnedLead(payload) {
-  await connectDatabase();
-  const leadId = cleanText(payload.leadId);
-  const teamLeadId = cleanText(payload.teamLeadId);
-  const teamLead = await Employee.findOne({ employeeId: teamLeadId, department: "Sales", designation: "TL", status: "Active" }).lean();
-  if (!teamLead) return { success: false, message: "Select an active Sales TL." };
-  const lead = await Lead.findOneAndUpdate(
-    { leadId, returnedToMarketingAt: { $ne: null }, archivedAt: null },
-    { $set: { assignedEmployeeId: teamLead.employeeId, marketingAssignedTlId: teamLead.employeeId, assignedAt: new Date(), assignmentStage: "TL", firstCallDeadline: new Date(Date.now() + FIRST_CALL_DEADLINE_MS), firstCallAt: null, securedAt: null, securedByEmployeeId: "", returnedToMarketingAt: null, status: "Reassigned to TL" } },
-    { new: true }
-  ).lean();
-  if (lead) await sendLeadAssignment(teamLead, lead, "Marketing");
-  return { success: Boolean(lead), data: await mapLeadWithEmployeeNames(lead), message: lead ? "Lead reassigned. TL has 30 minutes to call or delegate." : "Returned lead not found." };
+  return { success: false, message: "Lead reassignment is on hold." };
 }
 
 async function updateLeadRemark(payload) {
@@ -1094,6 +991,7 @@ async function updateLeadRemark(payload) {
 
   const leadId = cleanText(payload.leadId);
   const employeeId = cleanText(payload.employeeId);
+  if (!employeeId) return { success: false, message: "Employee ID is required." };
   const status = cleanText(payload.status);
   const remark = cleanText(payload.remark);
 
@@ -1165,50 +1063,7 @@ async function updateLeadRemark(payload) {
 }
 
 async function archiveEmployeeLead(payload) {
-  await connectDatabase();
-
-  const leadId = cleanText(payload.leadId);
-  const employeeId = cleanText(payload.employeeId);
-  if (!(await canUseLeadFeatures(employeeId))) {
-    return { success: false, message: "Lead access is disabled for your role." };
-  }
-  const lead = await Lead.findOne({ leadId, assignedEmployeeId: employeeId }).lean();
-
-  if (!lead) {
-    return {
-      success: false,
-      message: "Lead not found."
-    };
-  }
-
-  const mapped = mapLead(lead);
-
-  if (!mapped.stats.archiveEligible) {
-    return {
-      success: false,
-      message: mapped.stats.isConnected
-        ? "Connected leads require at least one follow-up call every 48 hours."
-        : "This lead needs 3 call attempts per day for 4 days before it can be removed."
-    };
-  }
-
-  const updated = await Lead.findOneAndUpdate(
-    { leadId, assignedEmployeeId: employeeId },
-    {
-      $set: {
-        status: "Archived",
-        archivedByEmployee: true,
-        archivedAt: new Date()
-      }
-    },
-    { new: true }
-  ).lean();
-
-  return {
-    success: true,
-    data: mapLead(updated),
-    message: "Lead archived."
-  };
+  return { success: false, message: "Lead archiving is on hold. Assigned leads stay with their owner." };
 }
 
 async function getMarketingLeadDashboard() {
@@ -1230,9 +1085,9 @@ async function getMarketingLeadDashboard() {
     return {
       ...employee,
       activeLeadCount: employeeLeads.length,
-      storageRemaining: Math.max(MAX_ACTIVE_LEADS_PER_EMPLOYEE - employeeLeads.length, 0),
+      storageRemaining: null,
       blockedLeadCount: blockedLeads.length,
-      canReceiveNewLeads: employeeLeads.length < MAX_ACTIVE_LEADS_PER_EMPLOYEE
+      canReceiveNewLeads: true
       ,executives: Array.from(employeesById.values()).filter(member => member.department === "Sales" && member.designation === "Executive" && member.teamLeadId === employee.employeeId && member.status === "Active")
     };
   });
@@ -1243,10 +1098,11 @@ async function getMarketingLeadDashboard() {
       employees: employeeSummaries,
       leads: mappedLeads,
       limits: {
-        maxActiveLeads: MAX_ACTIVE_LEADS_PER_EMPLOYEE,
-        dailyCallTarget: DAILY_LEAD_CALL_TARGET,
-        callDaysTarget: LEAD_CALL_DAYS_TARGET,
-        connectedFollowUpHours: CONNECTED_FOLLOW_UP_HOURS
+        maxActiveLeads: null,
+        dailyCallTarget: null,
+        callDaysTarget: null,
+        connectedFollowUpHours: null,
+        leadRulesOnHold: true
       }
     }
   };

@@ -24,12 +24,6 @@ object LeadAlertFactory {
         if (lead.optString("nextFollowUpDate") == today && !calledToday) {
             result += LeadAlert(leadId, "Follow-up: $name", "Follow-up is scheduled for today.", true)
         }
-        if (stats.optString("callMode") == "not_connected_daily") {
-            val remaining = stats.optInt("todayRemainingAttempts")
-            if (remaining > 0) result += LeadAlert(leadId, "Calls remaining: $name", "$remaining of 3 mandatory call attempts remaining today.", true)
-        } else if (stats.optBoolean("followUpCallOverdue")) {
-            result += LeadAlert(leadId, "48-hour call due: $name", "The mandatory follow-up call is due now.", true)
-        }
         return result
     }
 }
@@ -80,7 +74,7 @@ class LeadAlertReceiver : BroadcastReceiver() {
 
     private fun showNotification(context: Context, alert: LeadAlert) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        AppNotificationChannels.ensure(context, CHANNEL_ID, "Lead reminders", "Follow-ups and required lead call reminders")
+        AppNotificationChannels.ensure(context, CHANNEL_ID, "Lead reminders", "Scheduled lead follow-ups")
         val intent = Intent(context, AlertsActivity::class.java).putExtra("leadId", alert.leadId).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         val pending = PendingIntent.getActivity(context, alert.leadId.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         manager.notify((alert.leadId + alert.title).hashCode(), NotificationCompat.Builder(context, CHANNEL_ID)

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, LogIn, PhoneCall, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, LogIn, PhoneCall, Save } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 import { useToast } from "../../components/Toast.jsx";
 import { AttendanceApi } from "../../api";
@@ -107,24 +107,12 @@ export default function EmployeeLeadDetails() {
     }
   }
 
-  async function archiveLead() {
-    try {
-      const result = await AttendanceApi.archiveEmployeeLead(leadId, employee.employeeId);
-      if (!result.success) {
-        toast.warning(result.message || "Lead cannot be removed yet.");
-        return;
-      }
-
-      toast.success("Lead removed from your active list.");
-      navigate("/employee/leads");
-    } catch (error) {
-      toast.error(error.message || "Lead remove failed.");
-    }
-  }
-
   const attempts = useMemo(() => {
     return (lead?.attempts || []).slice().sort((a, b) => new Date(b.calledAt) - new Date(a.calledAt));
   }, [lead]);
+  const fields = lead?.sheetFields || {};
+  const sheetColumns = [...new Set([...(lead?.sheetFieldOrder || []), ...Object.keys(fields)])];
+  const sheetFields = sheetColumns.map(column => [column, fields[column]]);
 
   if (!employee?.employeeId) {
     return (
@@ -151,10 +139,28 @@ export default function EmployeeLeadDetails() {
         <PageHeader
           icon={PhoneCall}
           title={lead.name}
-          subtitle={`${lead.phone} • ${lead.status}`}
+          subtitle={`${lead.phone || "No phone number"} · ${lead.status || "New"}`}
           tone="cyan"
           action={<Link className="btn dark" to="/employee/leads"><ArrowLeft size={18} /> Back</Link>}
         />
+
+        <section className="panel" style={{ marginBottom: 18 }}>
+          <h2>Lead details from Google Sheet</h2>
+          {sheetFields.length === 0 ? (
+            <p className="muted">No Sheet fields are available for this lead.</p>
+          ) : (
+            <dl style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 16, margin: 0 }}>
+              {sheetFields.map(([column, value]) => (
+                <div key={column} style={{ minWidth: 0, padding: 14, border: "1px solid #e2e8f0", borderRadius: 14, background: "#f8fafc" }}>
+                  <dt className="muted" style={{ fontWeight: 700, marginBottom: 6, overflowWrap: "anywhere" }}>{column}</dt>
+                  <dd style={{ margin: 0, overflowWrap: "anywhere" }}>
+                    {value === null || value === undefined || String(value).trim() === "" ? "-" : String(value)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
 
         <section className="leadDetailsLayout">
           <div className="panel">
@@ -163,35 +169,16 @@ export default function EmployeeLeadDetails() {
                 <span className="muted">Lead Phone</span>
                 <h2>{lead.phone}</h2>
               </div>
-              <span className={"status " + (lead.stats.archiveEligible ? "active" : "leave")}>
-                {lead.stats.archiveEligible ? "Ready to remove" : "Call target pending"}
-              </span>
+              <span className="status active">Assigned to you</span>
             </div>
 
             <div className="metricGrid">
-              <div className="metricBox"><b>{lead.stats.totalAttempts}</b><span>Total calls</span></div>
-              <div className="metricBox"><b>{lead.stats.connectedAttempts}</b><span>Connected</span></div>
-              <div className="metricBox"><b>{lead.stats.callMode === "connected_48h" ? "1/48h" : `${lead.stats.todayAttempts}/3`}</b><span>{lead.stats.callMode === "connected_48h" ? "Follow-up" : "Today"}</span></div>
-              <div className="metricBox"><b>{lead.stats.callMode === "connected_48h" ? `${lead.stats.hoursUntilNextRequiredCall}h` : `${lead.stats.completedDays}/4`}</b><span>{lead.stats.callMode === "connected_48h" ? "Time remaining" : "Completed days"}</span></div>
+              <div className="metricBox"><b>{lead.stats?.totalAttempts || 0}</b><span>Total calls</span></div>
+              <div className="metricBox"><b>{lead.stats?.connectedAttempts || 0}</b><span>Connected</span></div>
             </div>
-
-            {lead.stats.callMode === "connected_48h" ? (
-              <div className={"dayBox " + (!lead.stats.followUpCallOverdue ? "done" : "")}>
-                <b>48-hour follow-up</b>
-                <span>{lead.stats.requirementSummary}</span>
-              </div>
-            ) : <div className="weekGrid">
-              {lead.stats.daily.map(day => (
-                <div className={"dayBox " + (day.complete ? "done" : "")} key={day.date}>
-                  <b>{day.date.slice(5)}</b>
-                  <span>{day.attempts}/3 calls</span>
-                </div>
-              ))}
-            </div>}
-
-            <button className="btn red full" disabled={!lead.stats.archiveEligible} onClick={archiveLead}>
-              <Trash2 size={18} /> Remove Lead
-            </button>
+            <p className="muted">Assigned: {formatDateTime(lead.assignedAt)}</p>
+            {lead.nextFollowUpDate && <p className="muted">Next follow-up: {formatDateTime(lead.nextFollowUpDate)}</p>}
+            {lead.meetingDate && <p className="muted">Meeting: {formatDateTime(lead.meetingDate)}</p>}
           </div>
 
           <div className="panel">
@@ -228,7 +215,7 @@ export default function EmployeeLeadDetails() {
                 </div>
                 <div className="field fullSpan">
                   <label>Remark</label>
-                  <textarea required value={remark} onChange={event => setRemark(event.target.value)} placeholder="Mandatory: customer response, objection, or next action..." />
+                  <textarea required value={remark} onChange={event => setRemark(event.target.value)} placeholder="Customer response, objection, or next action..." />
                 </div>
               </div>
               <div className="toolbar">

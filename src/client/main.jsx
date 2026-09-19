@@ -18,6 +18,7 @@ import SalarySlip from "./pages/hr/SalarySlip.jsx";
 import CallActivity from "./pages/hr/CallActivity.jsx";
 import ReleaseManager from "./pages/admin/ReleaseManager.jsx";
 import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
+import LeadSheetSettings from "./pages/admin/LeadSheetSettings.jsx";
 import MobileFeatureAccess from "./pages/admin/MobileFeatureAccess.jsx";
 import DatabaseAnalysis from "./pages/admin/DatabaseAnalysis.jsx";
 import DashboardCredentials from "./pages/admin/DashboardCredentials.jsx";
@@ -64,6 +65,7 @@ createRoot(document.getElementById("root")).render(
           <Route path="/ceo/login" element={<DashboardLogin role="ceo" />} />
           <Route path="/admin-login" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin" element={protect("admin", <AdminDashboard />)} />
+          <Route path="/admin/lead-sheet" element={protect("admin", <LeadSheetSettings />)} />
           <Route path="/admin/mobile-features" element={protect("admin", <MobileFeatureAccess />)} />
           <Route path="/admin/releases" element={protect("admin", <ReleaseManager />)} />
           <Route path="/admin/database" element={protect("admin", <DatabaseAnalysis />)} />

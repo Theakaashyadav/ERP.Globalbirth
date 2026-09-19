@@ -13,14 +13,11 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
-import android.widget.ArrayAdapter
-import android.widget.AdapterView
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
-import android.widget.Spinner
 import androidx.appcompat.app.AppCompatActivity
 import org.json.JSONArray
 import org.json.JSONObject
@@ -29,10 +26,8 @@ class LeadsActivity : AppCompatActivity() {
     private lateinit var root: LinearLayout
     private lateinit var listContainer: LinearLayout
     private var leads = JSONArray()
-    private var executives = JSONArray()
     private var query = ""
     private var selectedTab = "new"
-    private var selectedExecutiveId = ""
     private val refreshHandler = Handler(Looper.getMainLooper())
     private val refreshTask = object : Runnable {
         override fun run() {
@@ -63,19 +58,11 @@ class LeadsActivity : AppCompatActivity() {
     private fun load() {
         val session = SessionManager(this)
         val employeeId = session.getEmployeeId()
-        val request = if (session.isTeamLead()) JSONObject().put("action", "getTeamLeadWorkspaceLeads").put("teamLeadId", employeeId)
-            else JSONObject().put("action", "getEmployeeLeads").put("employeeId", employeeId)
+        val request = JSONObject().put("action", "getEmployeeLeads").put("employeeId", employeeId)
         ApiClient.post(request) { ok, message, response ->
             runOnUiThread {
                 if (!ok) showError(message) else {
-                    if (session.isTeamLead()) {
-                        val data = response?.optJSONObject("data")
-                        leads = data?.optJSONArray("leads") ?: JSONArray()
-                        executives = data?.optJSONArray("executives") ?: JSONArray()
-                    } else {
-                        leads = response?.optJSONArray("data") ?: JSONArray()
-                        executives = JSONArray()
-                    }
+                    leads = response?.optJSONArray("data") ?: JSONArray()
                     val ownLeads = JSONArray()
                     for (index in 0 until leads.length()) {
                         val lead = leads.optJSONObject(index) ?: continue
@@ -133,7 +120,7 @@ class LeadsActivity : AppCompatActivity() {
         fun count(tab: String): Int { var total = 0; for (index in 0 until leads.length()) if (matchesTab(leads.optJSONObject(index) ?: continue, tab, employeeId)) total++; return total }
         root.addView(LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; setPadding(dp(5), dp(5), dp(5), dp(5)); background = rounded("#E2E8F0", 18)
-            listOf(Triple("new", "New Leads", count("new")), Triple("mine", "My Leads", count("mine")), Triple("team", "Team Leads", count("team"))).forEach { item ->
+            listOf(Triple("new", "New Leads", count("new")), Triple("mine", "Called Leads", count("mine"))).forEach { item ->
                 addView(TextView(this@LeadsActivity).apply {
                     text = "${item.second}\n${item.third}"; textSize = 11.5f; gravity = Gravity.CENTER; typeface = Typeface.DEFAULT_BOLD
                     setTextColor(Color.parseColor(if (selectedTab == item.first) "#FFFFFF" else "#475569")); background = rounded(if (selectedTab == item.first) "#7C3AED" else "#00000000", 14); setPadding(dp(5), dp(9), dp(5), dp(9))
@@ -141,40 +128,25 @@ class LeadsActivity : AppCompatActivity() {
                 }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(2); marginEnd = dp(2) })
             }
         }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(12) })
-        if (selectedTab == "team") {
-            root.addView(EmployeeUi.section(this, "SELECT EXECUTIVE"))
-            val labels = mutableListOf("All Executives")
-            for (index in 0 until executives.length()) { val item = executives.optJSONObject(index); labels += "${item.optString("fullName")} (${item.optString("employeeId")})" }
-            root.addView(Spinner(this).apply {
-                adapter = ArrayAdapter(this@LeadsActivity, android.R.layout.simple_spinner_dropdown_item, labels)
-                val selectedIndex = (0 until executives.length()).firstOrNull { executives.optJSONObject(it).optString("employeeId") == selectedExecutiveId }?.plus(1) ?: 0
-                setSelection(selectedIndex); background = rounded("#FFFFFF", 16, "#CBD5E1"); setPadding(dp(13), 0, dp(13), 0)
-                onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-                    override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { selectedExecutiveId = if (position == 0) "" else executives.optJSONObject(position - 1).optString("employeeId"); renderList() }
-                    override fun onNothingSelected(parent: AdapterView<*>?) = Unit
-                }
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)).apply { bottomMargin = dp(12) })
-        }
     }
 
     private fun matchesTab(lead: JSONObject, tab: String = selectedTab, employeeId: String = SessionManager(this).getEmployeeId()): Boolean = when (tab) {
-        "new" -> lead.optString("assignedEmployeeId") == employeeId && lead.optString("assignmentStage").equals("TL", true) && lead.optString("firstCallAt").isBlank()
-        "mine" -> lead.optString("assignedEmployeeId") == employeeId && lead.optString("assignmentStage").equals("TL", true) && lead.optString("firstCallAt").isNotBlank()
-        "team" -> lead.optString("assignmentStage").equals("Executive", true) && (selectedExecutiveId.isBlank() || lead.optString("assignedEmployeeId") == selectedExecutiveId)
+        "new" -> lead.optString("assignedEmployeeId") == employeeId && lead.optString("firstCallAt").isBlank()
+        "mine" -> lead.optString("assignedEmployeeId") == employeeId && lead.optString("firstCallAt").isNotBlank()
         else -> true
     }
 
     private fun aggregateStats(): Triple<Int, Int, Int> {
-        var attemptedToday = 0; var completed = 0
+        var attemptedToday = 0; var connected = 0
         for (index in 0 until leads.length()) {
             val stats = leads.optJSONObject(index)?.optJSONObject("stats") ?: continue
             if (stats.optInt("todayAttempts") > 0) attemptedToday++
-            if (stats.optBoolean("archiveEligible")) completed++
+            if (stats.optInt("connectedAttempts") > 0) connected++
         }
-        return Triple(leads.length(), attemptedToday, completed)
+        return Triple(leads.length(), attemptedToday, connected)
     }
 
-    private fun summaryCard(total: Int, activeToday: Int, completed: Int): View = LinearLayout(this).apply {
+    private fun summaryCard(total: Int, activeToday: Int, connected: Int): View = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; setPadding(dp(20), dp(20), dp(20), dp(18)); elevation = dp(7).toFloat()
         background = GradientDrawable(GradientDrawable.Orientation.TL_BR, intArrayOf(Color.parseColor("#312E81"), Color.parseColor("#7C3AED"), Color.parseColor("#2563EB"))).apply { cornerRadius = dp(24).toFloat() }
         addView(LinearLayout(this@LeadsActivity).apply {
@@ -186,7 +158,7 @@ class LeadsActivity : AppCompatActivity() {
             orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(18), 0, 0)
             addView(metric(total.toString(), "Assigned"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(5) })
             addView(metric(activeToday.toString(), "Called today"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(5); marginEnd = dp(5) })
-            addView(metric(completed.toString(), "Complete"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(5) })
+            addView(metric(connected.toString(), "Connected"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(5) })
         })
     }
 
@@ -216,10 +188,8 @@ class LeadsActivity : AppCompatActivity() {
     private fun leadCard(lead: JSONObject): View {
         val stats = lead.optJSONObject("stats") ?: JSONObject()
         val status = lead.optString("status").ifBlank { "New" }
-        val accent = statusColor(status, stats.optBoolean("archiveEligible"))
+        val accent = statusColor(status)
         val today = stats.optInt("todayAttempts")
-        val days = stats.optInt("completedDays")
-        val connectedMode = stats.optString("callMode") == "connected_48h"
         return LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(17), dp(17), dp(15), dp(15)); background = rounded("#FFFFFF", 21, "#E2E8F0"); elevation = dp(3).toFloat(); isClickable = true; isFocusable = true
             setOnClickListener { startActivity(Intent(this@LeadsActivity, LeadDetailsActivity::class.java).putExtra("leadId", lead.optString("leadId"))) }
@@ -232,13 +202,10 @@ class LeadsActivity : AppCompatActivity() {
             addView(View(this@LeadsActivity).apply { setBackgroundColor(Color.parseColor("#E2E8F0")) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)).apply { topMargin = dp(14); bottomMargin = dp(13) })
             addView(LinearLayout(this@LeadsActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
-                addView(progressChip(if (connectedMode) "1 / 48h" else "$today/3", if (connectedMode) "Call frequency" else "Calls today", "#2563EB", "#EFF6FF"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(6) })
-                addView(progressChip(if (connectedMode) "${stats.optInt("hoursUntilNextRequiredCall")}h" else "$days/4", if (connectedMode) "Time remaining" else "Calling days", "#7C3AED", "#F5F3FF"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(6) })
+                addView(progressChip(today.toString(), "Calls today", "#2563EB", "#EFF6FF"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(6) })
+                addView(progressChip(stats.optInt("totalAttempts").toString(), "All calls", "#7C3AED", "#F5F3FF"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = dp(6) })
             })
             val hint = when {
-                SessionManager(this@LeadsActivity).isTeamLead() && lead.optString("assignmentStage").equals("TL", ignoreCase = true) -> "Handle this lead or optionally assign it to an Executive"
-                lead.optInt("deadlineRemainingSeconds") > 0 -> "First call due in ${lead.optInt("deadlineRemainingSeconds") / 60} minutes"
-                stats.optString("requirementSummary").isNotBlank() -> stats.optString("requirementSummary")
                 lead.optString("lastRemark").isNotBlank() -> lead.optString("lastRemark")
                 else -> "Tap to view call history and update follow-up"
             }
@@ -260,7 +227,7 @@ class LeadsActivity : AppCompatActivity() {
         addView(text(title, 17f, "#334155", true)); addView(text(subtitle, 13f, "#64748B").apply { gravity = Gravity.CENTER; setPadding(0, dp(7), 0, 0) })
     }
 
-    private fun statusColor(status: String, complete: Boolean): String = when { complete -> "#059669"; status.contains("Hot", true) -> "#DC2626"; status.contains("Interested", true) -> "#059669"; status.contains("No Response", true) -> "#D97706"; else -> "#7C3AED" }
+    private fun statusColor(status: String): String = when { status.contains("Hot", true) -> "#DC2626"; status.contains("Interested", true) -> "#059669"; status.contains("No Response", true) -> "#D97706"; else -> "#7C3AED" }
     private fun softColor(accent: String) = when(accent) { "#059669" -> "#ECFDF5"; "#DC2626" -> "#FEF2F2"; "#D97706" -> "#FFFBEB"; "#2563EB" -> "#EFF6FF"; else -> "#F5F3FF" }
     private fun text(value: String, size: Float, color: String, bold: Boolean = false) = TextView(this).apply { text = value; textSize = size; setTextColor(Color.parseColor(color)); if (bold) typeface = Typeface.DEFAULT_BOLD }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()

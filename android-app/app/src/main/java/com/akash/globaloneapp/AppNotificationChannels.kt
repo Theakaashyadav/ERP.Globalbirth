@@ -16,7 +16,7 @@ object AppNotificationChannels {
 
     fun ensureAll(context: Context) {
         ensure(context, LEAD_ASSIGNMENTS, "Lead assignments", "New leads assigned to you")
-        ensure(context, LEAD_REMINDERS, "Lead reminders", "Follow-ups and required lead call reminders")
+        ensure(context, LEAD_REMINDERS, "Lead reminders", "Scheduled lead follow-ups")
         ensure(context, EMPLOYEE_ALERTS, "Employee alerts", "Important messages from Admin, HR and Marketing")
         ensure(context, APP_UPDATES, "Mandatory app updates", "Required Global One app releases")
     }

@@ -65,7 +65,7 @@ class AlertsActivity : AppCompatActivity() {
                 val lead = leads.optJSONObject(i) ?: continue
                 if (lead.optString("assignedEmployeeId") == session.getEmployeeId() && lead.optString("firstCallAt").isBlank()) {
                     val key = AlertReadStore.leadAssignmentKey(lead.optString("leadId"))
-                    alerts += InboxAlert(key, "New lead: ${lead.optString("name").ifBlank { "Lead" }}", "Call within 30 minutes.", "LEAD SYSTEM", "Today", AlertReadStore.isRead(this, key), lead.optString("leadId"))
+                    alerts += InboxAlert(key, "New lead: ${lead.optString("name").ifBlank { "Lead" }}", "A lead has been assigned to you.", "LEAD SYSTEM", "Today", AlertReadStore.isRead(this, key), lead.optString("leadId"))
                 }
                 LeadAlertFactory.fromLead(lead).forEach { alert ->
                     val key = AlertReadStore.leadReminderKey(alert)

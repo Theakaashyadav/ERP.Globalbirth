@@ -19,7 +19,6 @@ function formatDateTime(value) {
 export default function EmployeeLeads() {
   const [leads, setLeads] = useState([]);
   const [search, setSearch] = useState("");
-  const [limits, setLimits] = useState({ maxActiveLeads: 50, dailyCallTarget: 3, callDaysTarget: 4, connectedFollowUpHours: 48 });
   const employee = getLoggedInUser();
   const toast = useToast();
 
@@ -32,7 +31,6 @@ export default function EmployeeLeads() {
       const result = await AttendanceApi.getEmployeeLeads(employee.employeeId);
       if (result.success) {
         setLeads(Array.isArray(result.data) ? result.data : []);
-        setLimits(result.limits || limits);
       }
     } catch (error) {
       toast.error(error.message || "Leads loading failed.");
@@ -45,8 +43,6 @@ export default function EmployeeLeads() {
       return normalize(lead.name).includes(needle) || String(lead.phone || "").includes(needle);
     });
   }, [leads, search]);
-
-  const todayPending = leads.filter(lead => lead.stats?.todayRemainingAttempts > 0).length;
 
   if (!employee?.employeeId) {
     return (
@@ -71,7 +67,7 @@ export default function EmployeeLeads() {
         <PageHeader
           icon={UserRoundCheck}
           title="New Leads"
-          subtitle={`${leads.length}/${limits.maxActiveLeads} active leads. ${todayPending} need more calls today.`}
+          subtitle={`${leads.length} assigned ${leads.length === 1 ? "lead" : "leads"}`}
           tone="cyan"
         />
 
@@ -90,16 +86,14 @@ export default function EmployeeLeads() {
                 <div>
                   <div className="leadTopline">
                     <h2>{lead.name}</h2>
-                    <span className={"status " + (lead.stats.archiveEligible ? "active" : "leave")}>
-                      {lead.stats.callMode === "connected_48h" ? "1 call / 48h" : `${lead.stats.completedDays}/${limits.callDaysTarget} days`}
-                    </span>
+                    <span className="status active">Assigned to you</span>
                   </div>
                   <p className="leadPhone"><PhoneCall size={16} /> {lead.phone}</p>
-                  <p className="muted">Last call: {formatDateTime(lead.stats.lastCallAt)}</p>
-                  <p className="muted">Last connect: {formatDateTime(lead.stats.lastConnectedAt)}</p>
+                  <p className="muted">Assigned: {formatDateTime(lead.assignedAt)}</p>
+                  <p className="muted">Last call: {formatDateTime(lead.stats?.lastCallAt)}</p>
                 </div>
                 <div className="leadFooter">
-                  <span className="miniMetric">{lead.stats.callMode === "connected_48h" ? lead.stats.requirementSummary : `${lead.stats.todayAttempts}/${limits.dailyCallTarget} today`}</span>
+                  <span className="miniMetric">{lead.status || "New"}</span>
                   <Link className="btn" to={`/employee/leads/${lead.leadId}`}>
                     <Search size={18} /> Details
                   </Link>

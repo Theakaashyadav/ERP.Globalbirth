@@ -9,14 +9,11 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.provider.CallLog
 import android.view.View
 import android.view.ViewGroup
 import android.view.Gravity
 import android.widget.*
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -35,7 +32,6 @@ class LeadDetailsActivity : AppCompatActivity() {
     private var currentLead: JSONObject? = null
     private var syncCompletedForView = false
     private var dialerOpened = false
-    private val expiryHandler = Handler(Looper.getMainLooper())
     private val employeeId by lazy { SessionManager(this).getEmployeeId() }
     private val leadId by lazy { intent.getStringExtra("leadId").orEmpty() }
 
@@ -61,11 +57,6 @@ class LeadDetailsActivity : AppCompatActivity() {
         }
     }
 
-    override fun onStop() {
-        expiryHandler.removeCallbacksAndMessages(null)
-        super.onStop()
-    }
-
     private fun load() {
         ApiClient.post(JSONObject().put("action", "getLeadDetails").put("leadId", leadId).put("employeeId", employeeId)) { ok, message, response ->
             runOnUiThread {
@@ -74,7 +65,6 @@ class LeadDetailsActivity : AppCompatActivity() {
                 currentLead = lead
                 build(lead)
                 refreshBadgeCounts()
-                scheduleExpiryRefresh(lead)
                 if (!syncCompletedForView && lead.optString("assignedEmployeeId") == employeeId) ensureCallLogSync(lead)
             }
         }
@@ -90,17 +80,15 @@ class LeadDetailsActivity : AppCompatActivity() {
         }
     }
 
-    private fun scheduleExpiryRefresh(lead: JSONObject) {
-        expiryHandler.removeCallbacksAndMessages(null)
-        val deadline = try { Instant.parse(lead.optString("firstCallDeadline")).toEpochMilli() } catch (_: Exception) { 0L }
-        if (deadline <= 0L || lead.optString("firstCallAt").isNotBlank()) return
-        expiryHandler.postDelayed({ load() }, (deadline - System.currentTimeMillis()).coerceAtLeast(0L) + 1_500L)
-    }
-
     private fun build(lead: JSONObject) {
-        root = EmployeeUi.screen(this, "Lead Details", "Contact, delegate and manage follow-up", EmployeeUi.NAV_LEADS, true)
+        root = EmployeeUi.screen(this, "Lead Details", "Contact and manage follow-up", EmployeeUi.NAV_LEADS, true)
         if (lead.optString("assignedEmployeeId") != employeeId) EmployeeUi.addCard(root, noticeCard("Team lead view", "This lead is assigned to ${lead.optString("assignedEmployeeName").ifBlank { "your Executive" }}. You can review its status, remarks and call history here.", "#7C3AED", "#F5F3FF"))
         EmployeeUi.addCard(root, contactCard(lead))
+        val sheetFields = lead.optJSONObject("sheetFields")
+        if (sheetFields != null && sheetFields.length() > 0) {
+            root.addView(sectionHeading("SHEET DETAILS", "All columns from the connected Google Sheet"))
+            EmployeeUi.addCard(root, sheetFieldsCard(sheetFields, lead))
+        }
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
         actions.addView(actionButton(R.drawable.ic_dashboard_leads, "Call Lead", "#059669") {
             dialerOpened = true; startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:${lead.optString("phone")}")))
@@ -109,26 +97,13 @@ class LeadDetailsActivity : AppCompatActivity() {
         root.addView(actions, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(16) })
 
         val stats = lead.optJSONObject("stats") ?: JSONObject()
-        val connectedMode = stats.optString("callMode") == "connected_48h"
         root.addView(sectionHeading("CALL PERFORMANCE", "Automatically matched from this phone"))
         EmployeeUi.addCard(root, LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; setPadding(dp(8), dp(8), dp(8), dp(8)); background = rounded("#FFFFFF", 21, "#E2E8F0")
             addView(metric(stats.optInt("totalAttempts").toString(), "All calls", "#7C3AED", "#F5F3FF"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(metric(stats.optInt("connectedAttempts").toString(), "Connected", "#059669", "#ECFDF5"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(metric(if (connectedMode) "1/48h" else "${stats.optInt("todayAttempts")}/3", if (connectedMode) "Follow-up" else "Today", "#2563EB", "#EFF6FF"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
-            addView(metric(if (connectedMode) "${stats.optInt("hoursUntilNextRequiredCall")}h" else "${stats.optInt("completedDays")}/4", if (connectedMode) "Time left" else "Days", "#D97706", "#FFFBEB"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(metric(stats.optInt("todayAttempts").toString(), "Today", "#2563EB", "#EFF6FF"), LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         })
-        EmployeeUi.addCard(root, noticeCard(if (connectedMode) "48-hour follow-up rule" else "Daily call rule", stats.optString("requirementSummary"), if (stats.optBoolean("followUpCallOverdue")) "#DC2626" else "#2563EB", if (stats.optBoolean("followUpCallOverdue")) "#FEF2F2" else "#EFF6FF"))
-        if (lead.optInt("deadlineRemainingSeconds") > 0) {
-            EmployeeUi.addCard(root, noticeCard("First-call deadline", "${lead.optInt("deadlineRemainingSeconds") / 60} minutes remaining to call or delegate this lead.", "#DC2626", "#FEF2F2"))
-        }
-        if (SessionManager(this).isTeamLead() && lead.optString("assignmentStage").equals("TL", ignoreCase = true)) {
-            root.addView(sectionHeading("ASSIGN TO EXECUTIVE", "Optional — you may handle this lead yourself or delegate it"))
-            val delegationPanel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(18), dp(18), dp(18)); background = rounded("#FFFFFF", 21, "#E2E8F0"); elevation = dp(3).toFloat() }
-            EmployeeUi.addCard(root, delegationPanel)
-            addExecutiveAssignment(delegationPanel)
-        }
-
         root.addView(sectionHeading("FOLLOW-UP UPDATE", "Select an outcome and record the next action"))
         val statuses = listOf("Interested", "Not Interested", "No Response", "Cold", "Hot", "Wrong No.", "Meeting Fix")
         status = Spinner(this).apply {
@@ -175,27 +150,43 @@ class LeadDetailsActivity : AppCompatActivity() {
             }
         }
 
-        root.addView(EmployeeUi.button(this, "Remove Lead", "#DC2626") {
-            if (!stats.optBoolean("archiveEligible")) EmployeeUi.toast(this, if (connectedMode) "Connected leads require one follow-up call every 48 hours." else "Complete 3 calls per day for 4 days before removing this lead.")
-            else AlertDialog.Builder(this).setMessage("Remove this lead from your active list?").setPositiveButton("Remove") { _, _ -> archiveLead() }.setNegativeButton("Cancel", null).show()
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)).apply { topMargin = dp(4); bottomMargin = dp(18) })
     }
 
-    private fun addExecutiveAssignment(container: LinearLayout) {
-        ApiClient.post(JSONObject().put("action", "getTeamExecutives").put("teamLeadId", employeeId)) { ok, message, response -> runOnUiThread {
-            if (!ok) { EmployeeUi.toast(this, message); return@runOnUiThread }
-            val executives = response?.optJSONArray("data") ?: return@runOnUiThread
-            container.removeAllViews()
-            if (executives.length() == 0) { EmployeeUi.addCard(container, EmployeeUi.card(this, "No Executive available", "Ask HR to set a Sales employee's designation to Executive and select you as their TL.")); return@runOnUiThread }
-            val names = (0 until executives.length()).map { executives.optJSONObject(it).optString("fullName") + " (" + executives.optJSONObject(it).optString("employeeId") + ")" }
-            container.addView(fieldLabel("SELECT EXECUTIVE"))
-            val picker = Spinner(this).apply { adapter = ArrayAdapter(this@LeadDetailsActivity, android.R.layout.simple_spinner_dropdown_item, names); background = rounded("#F8FAFC", 15, "#CBD5E1"); setPadding(dp(13),0,dp(13),0) }
-            container.addView(picker, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)).apply { bottomMargin = dp(12) })
-            container.addView(EmployeeUi.button(this, "Assign Lead to Executive", "#7C3AED") {
-                val executiveId = executives.optJSONObject(picker.selectedItemPosition).optString("employeeId")
-                ApiClient.post(JSONObject().put("action", "assignLeadToExecutive").put("leadId", leadId).put("teamLeadId", employeeId).put("executiveId", executiveId)) { assigned, resultMessage, _ -> runOnUiThread { EmployeeUi.toast(this, resultMessage); if (assigned) { syncCompletedForView = false; load() } } }
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(54)))
-        }}
+    private fun sheetFieldsCard(fields: JSONObject, lead: JSONObject): View = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
+        setPadding(dp(18), dp(10), dp(18), dp(10))
+        background = rounded("#FFFFFF", 21, "#E2E8F0")
+        val order = mutableListOf<String>()
+        val requestedOrder = lead.optJSONArray("sheetFieldOrder")
+        if (requestedOrder != null) for (index in 0 until requestedOrder.length()) {
+            val header = requestedOrder.optString(index)
+            if (fields.has(header) && header !in order) order += header
+        }
+        val keys = fields.keys()
+        while (keys.hasNext()) {
+            val header = keys.next()
+            if (header !in order) order += header
+        }
+        order.forEachIndexed { index, header ->
+            if (index > 0) addView(View(this@LeadDetailsActivity).apply { setBackgroundColor(Color.parseColor("#E2E8F0")) }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
+            addView(LinearLayout(this@LeadDetailsActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(2), dp(10), dp(2), dp(10))
+                addView(TextView(this@LeadDetailsActivity).apply {
+                    text = header
+                    textSize = 11.5f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(Color.parseColor("#64748B"))
+                })
+                addView(TextView(this@LeadDetailsActivity).apply {
+                    val raw = fields.opt(header)
+                    text = if (raw == null || raw == JSONObject.NULL) "—" else raw.toString().ifBlank { "—" }
+                    textSize = 14.5f
+                    setTextColor(Color.parseColor("#1E293B"))
+                    setPadding(0, dp(4), 0, 0)
+                })
+            })
+        }
     }
 
     private fun contactCard(lead: JSONObject): View = LinearLayout(this).apply {
@@ -211,7 +202,7 @@ class LeadDetailsActivity : AppCompatActivity() {
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(TextView(this@LeadDetailsActivity).apply { text = lead.optString("status").ifBlank { "New" }; textSize = 10.5f; typeface = Typeface.DEFAULT_BOLD; setTextColor(Color.WHITE); background = rounded("#30FFFFFF", 20); setPadding(dp(9), dp(6), dp(9), dp(6)); maxLines = 1 })
         })
-        addView(TextView(this@LeadDetailsActivity).apply { text = "${lead.optString("city").ifBlank { "City not provided" }}  •  ${lead.optString("assignmentStage").ifBlank { "Assigned" }}"; textSize = 12.5f; setTextColor(Color.parseColor("#E0F2FE")); setPadding(0, dp(15), 0, 0) })
+        addView(TextView(this@LeadDetailsActivity).apply { text = "${lead.optString("city").ifBlank { "City not provided" }}  •  Assigned to ${lead.optString("assignedEmployeeName").ifBlank { "employee" }}"; textSize = 12.5f; setTextColor(Color.parseColor("#E0F2FE")); setPadding(0, dp(15), 0, 0) })
     }
 
     private fun actionButton(icon: Int, label: String, color: String, click: () -> Unit): View = LinearLayout(this).apply {
@@ -298,10 +289,6 @@ class LeadDetailsActivity : AppCompatActivity() {
         if (meetingDate.visibility == View.VISIBLE && meetingDate.text.toString().isBlank()) { EmployeeUi.toast(this, "Select the meeting date."); return }
         val body = JSONObject().put("action", "updateLeadRemark").put("leadId", leadId).put("employeeId", employeeId).put("status", selected).put("remark", remarkValue).put("nextFollowUpDate", nextFollowUpDate.text.toString()).put("meetingDate", meetingDate.text.toString())
         ApiClient.post(body) { ok, message, _ -> runOnUiThread { if (ok) { EmployeeUi.toast(this, "Follow-up updated."); load() } else EmployeeUi.toast(this, message) } }
-    }
-
-    private fun archiveLead() {
-        ApiClient.post(JSONObject().put("action", "archiveEmployeeLead").put("leadId", leadId).put("employeeId", employeeId)) { ok, message, _ -> runOnUiThread { if (ok) finish() else EmployeeUi.toast(this, message) } }
     }
 
     private fun ensureCallLogSync(lead: JSONObject) {

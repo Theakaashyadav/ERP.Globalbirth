@@ -1,16 +1,16 @@
 require("dotenv").config();
 
 const { createApp } = require("./src/server/app");
-const { expireOverdueLeadAssignments } = require("./src/server/services/attendance.service");
+const { syncLeadSheet } = require("./src/server/services/lead-sheet.service");
 
 const port = process.env.PORT || 3000;
 const app = createApp();
 
 app.listen(port, () => {
   console.log("Attendance system running on port " + port);
-  expireOverdueLeadAssignments().catch(error => console.error("Lead deadline check failed:", error.message));
+  syncLeadSheet().catch(error => console.error("Lead Sheet sync failed:", error.message));
 });
 
 setInterval(() => {
-  expireOverdueLeadAssignments().catch(error => console.error("Lead deadline check failed:", error.message));
-}, 60 * 1000).unref();
+  syncLeadSheet().catch(error => console.error("Lead Sheet sync failed:", error.message));
+}, 10 * 1000).unref();

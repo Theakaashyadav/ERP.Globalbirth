@@ -62,12 +62,12 @@ const leadSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      required: true,
+      default: "Lead",
       trim: true
     },
     phone: {
       type: String,
-      required: true,
+      default: "",
       trim: true
     },
     city: {
@@ -80,6 +80,12 @@ const leadSchema = new mongoose.Schema(
       default: "Admin",
       trim: true
     },
+    sheetFields: { type: mongoose.Schema.Types.Mixed, default: {} },
+    sheetFieldOrder: { type: [String], default: [] },
+    sheetSourceKey: { type: String, default: undefined, unique: true, sparse: true },
+    sheetSpreadsheetId: { type: String, default: "" },
+    sheetTabId: { type: Number, default: null },
+    sheetRowNumber: { type: Number, default: null },
     assignedEmployeeId: {
       type: String,
       default: "",

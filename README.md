@@ -27,6 +27,17 @@ Use Node.js 20 or newer. Configure the environment variables documented in `.env
 
 Never commit `.env`, Firebase service-account JSON, MongoDB credentials or signing keys.
 
+## Google Sheet lead connection
+
+1. Configure the existing Firebase service account on the server. Enable the Google Sheets API for its Google Cloud project.
+2. In **Admin Control Center → Lead Sheet Connection**, paste the Google Sheet link, including the tab (`gid`) you want to import.
+3. Share that Sheet with the service account email shown on the page as **Editor**. A private Sheet link alone does not grant read and write access.
+4. Select the active Sales employees who should receive leads and save. The server checks the Sheet about every 10 seconds. Use **Check Sheet now** to test the connection.
+
+The first row supplies column names. New rows need a valid 10 digit Indian phone number (a `+91` prefix is accepted) and are assigned once across the selected employees. The server adds **Assigned Employee**, **Assigned Employee ID**, and **GlobalOne Lead ID** columns, and writes the owner back to the Sheet. Existing rows with an Assigned Employee value are left as they are. Rows without a valid phone number wait for correction. All original columns appear in the employee lead details. Apps Script is not required.
+
+Assignments are permanent while lead rules are on hold: the 30 minute return, 50 lead cap, delegation, reassignment, archive action, and mandatory call targets are disabled. Call history and employee follow-up updates remain available.
+
 ## Android build
 
 From `android-app`, provide the hosted attendance endpoint and shared client key:

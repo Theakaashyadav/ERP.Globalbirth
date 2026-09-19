@@ -7,6 +7,7 @@ const officeWifi = require("../services/office-wifi.service");
 const announcements = require("../services/announcement.service");
 const appFeedback = require("../services/app-feedback.service");
 const salarySlips = require("../services/salary-slip.service");
+const leadSheet = require("../services/lead-sheet.service");
 const Employee = require("../models/Employee");
 const { connectDatabase } = require("../db/connection");
 const { readDashboardSession, readEmployeeSession, canAccessDashboardRole } = require("../security/dashboard-session");
@@ -38,6 +39,9 @@ const handlers = {
   archiveEmployeeLead: attendance.archiveEmployeeLead,
   getMarketingLeadDashboard: attendance.getMarketingLeadDashboard,
   clearAllLeads: attendance.clearAllLeads,
+  getLeadSheetSettings: leadSheet.getLeadSheetSettings,
+  updateLeadSheetSettings: leadSheet.updateLeadSheetSettings,
+  syncLeadSheet: leadSheet.syncLeadSheet,
   sendTestPush: attendance.sendTestPush
   ,getMobileFeatureSettings: mobileFeatures.getMobileFeatureSettings
   ,updateMobileFeatureSettings: mobileFeatures.updateMobileFeatureSettings
@@ -79,6 +83,7 @@ async function handleAttendanceAction(req, res) {
     assignLead: ["marketing"], reassignReturnedLead: ["marketing"], getMarketingLeadDashboard: ["marketing"],
     requestCallLogStats: ["admin", "marketing"], getCallLogStatsRequest: ["admin", "marketing"],
     getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], resetDatabaseCollection: ["admin"], clearAllLeads: ["admin"], sendTestPush: ["admin"],
+    getLeadSheetSettings: ["admin"], updateLeadSheetSettings: ["admin"], syncLeadSheet: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
     getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAttendanceWifiExemptions: ["admin"], updateAttendanceWifiExemptions: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],
     getSalarySlips: ["hr"], saveSalarySlip: ["hr"],
@@ -97,9 +102,19 @@ async function handleAttendanceAction(req, res) {
     "registerPushToken", "getEmployeeAlerts", "markAlertRead", "getPendingCallLogRequests"
   ]);
   if (employeeActions.has(action)) {
+    const teamLeadActions = new Set(["getTeamLeadWorkspaceLeads", "getTeamExecutives", "assignLeadToExecutive"]);
+    if (teamLeadActions.has(action) && req.body.employeeId && String(req.body.employeeId).trim() !== String(req.body.teamLeadId || "").trim()) {
+      res.status(403).json({ success: false, message: "Employee identity does not match the requested team." });
+      return;
+    }
     const employeeId = String(
-      req.body.employeeId || req.body.teamLeadId || req.body.records?.[0]?.employeeId || ""
+      (teamLeadActions.has(action) ? req.body.teamLeadId : req.body.employeeId) ||
+      (action === "saveAttendance" ? req.body.records?.[0]?.employeeId : "") || ""
     ).trim();
+    if (action === "saveAttendance" && (!Array.isArray(req.body.records) || req.body.records.some(record => String(record?.employeeId || "").trim() !== employeeId))) {
+      res.status(403).json({ success: false, message: "Attendance records must belong to the verified employee." });
+      return;
+    }
     const androidId = String(req.body.androidId || "").trim();
     const browserSession = readEmployeeSession(req);
     await connectDatabase();
