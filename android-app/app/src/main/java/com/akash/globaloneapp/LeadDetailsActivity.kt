@@ -86,7 +86,7 @@ class LeadDetailsActivity : AppCompatActivity() {
         EmployeeUi.addCard(root, contactCard(lead))
         val sheetFields = lead.optJSONObject("sheetFields")
         if (sheetFields != null && sheetFields.length() > 0) {
-            root.addView(sectionHeading("SHEET DETAILS", "All columns from the connected Google Sheet"))
+            root.addView(sectionHeading("CUSTOMER DETAILS & QUESTIONS", "Information supplied by the customer"))
             EmployeeUi.addCard(root, sheetFieldsCard(sheetFields, lead))
         }
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }

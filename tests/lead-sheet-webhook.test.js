@@ -1,6 +1,71 @@
 const assert = require("node:assert/strict");
 const Module = require("node:module");
 const test = require("node:test");
+const { employeeSheetData } = require("../src/server/services/lead-sheet-fields");
+
+test("employee projection keeps changing questions and hides only Meta tracking and GlobalOne controls", () => {
+  const fields = {
+    id: "123", created_time: "2026-09-19", campaign_name: "Autumn", form_name: "Homes",
+    full_name: "Asha Customer", phone_number: "9876543210", city: "Delhi", lead_status: "New",
+    "You are looking for this property for?": "Family",
+    "Preferred budget range": "50-70 lakh", "A new question without punctuation": "Yes",
+    "Assigned Employee": "Sales One", "GlobalOne Sharing Status": "Done",
+    "GlobalOne Notification Status": "Accepted", "GlobalOne Synced Hash": "abc",
+    "campaign_name (2)": "Duplicate Meta column", "GlobalOne Sharing Status (2)": "Done"
+  };
+  const result = employeeSheetData(fields, Object.keys(fields));
+  assert.deepEqual(result.sheetFieldOrder, [
+    "full_name", "phone_number", "city", "lead_status",
+    "You are looking for this property for?", "Preferred budget range", "A new question without punctuation"
+  ]);
+  assert.equal(result.sheetFields["Preferred budget range"], "50-70 lakh");
+  assert.equal(result.sheetFields.id, undefined);
+  assert.equal(result.sheetFields["GlobalOne Synced Hash"], undefined);
+});
+
+test("employee lead API shows questions while marketing retains the complete source row", async () => {
+  const originalLoad = Module._load;
+  const employee = { employeeId: "EMP1", fullName: "Asha", status: "Active", department: "Sales", designation: "Executive" };
+  const sheetFields = {
+    id: "meta-1", campaign_name: "Autumn", full_name: "Customer One", phone_number: "9876543210",
+    "What property use?": "Family", "A new question": "Yes", "Assigned Employee": "Asha",
+    "GlobalOne Sharing Status": "Done", "GlobalOne Notification Status": "Accepted"
+  };
+  const lead = { leadId: "SHEETAAAAAAAAAAAAAAAA", name: "Customer One", phone: "9876543210",
+    assignedEmployeeId: "EMP1", assignedAt: new Date(), archivedAt: null, sheetFields,
+    sheetFieldOrder: Object.keys(sheetFields), sheetSourceKey: "sheet:row:2", sharingStatus: "Done", notificationStatus: "Accepted",
+    attempts: [], followUpHistory: [] };
+  const query = value => ({ select() { return this; }, sort() { return this; }, lean: async () => structuredClone(value) });
+  const mocks = {
+    "../models/Employee": { findOne: () => query(employee), find: () => query([employee]) },
+    "../models/Lead": { find: () => query([lead]) },
+    "../models/AttendanceRecord": {},
+    "../db/connection": { connectDatabase: async () => {} },
+    "../security/dashboard-session": {},
+    "./dashboard-credential.service": {},
+    "./office-wifi.service": {},
+    "./push-notification.service": {},
+    "./mobile-feature.service": { hasEmployeeFeature: async () => true }
+  };
+  Module._load = function(request, parent, isMain) {
+    if (parent?.filename.endsWith("attendance.service.js") && mocks[request]) return mocks[request];
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  try {
+    const { getEmployeeLeads, getMarketingLeadDashboard } = require("../src/server/services/attendance.service");
+    const employeeResult = await getEmployeeLeads({ employeeId: "EMP1" });
+    assert.equal(employeeResult.success, true);
+    assert.deepEqual(employeeResult.data[0].sheetFieldOrder, ["full_name", "phone_number", "What property use?", "A new question"]);
+    assert.equal(employeeResult.data[0].sheetFields.id, undefined);
+    const marketingResult = await getMarketingLeadDashboard();
+    assert.equal(marketingResult.success, true);
+    assert.equal(marketingResult.data.leads[0].sheetFields.id, "meta-1");
+    assert.equal(marketingResult.data.leads[0].sheetFields["GlobalOne Sharing Status"], "Done");
+  } finally {
+    Module._load = originalLoad;
+    delete require.cache[require.resolve("../src/server/services/attendance.service")];
+  }
+});
 
 test("Apps Script webhook authenticates the configured Sheet and assigns each row once", async () => {
   const originalLoad = Module._load;
@@ -8,6 +73,7 @@ test("Apps Script webhook authenticates the configured Sheet and assigns each ro
   let settings = null;
   const leads = [];
   const notifications = [];
+  let pushSucceeds = true;
   const people = [
     { employeeId: "EMP1", fullName: "Asha", department: "Sales", designation: "Executive", status: "Active", teamLeadId: "" },
     { employeeId: "EMP2", fullName: "Ravi", department: "Sales", designation: "TL", status: "Active", teamLeadId: "" }
@@ -42,7 +108,7 @@ test("Apps Script webhook authenticates the configured Sheet and assigns each ro
       updateOne: async (criteria, update) => { settings = { ...settings, ...update.$set }; }
     },
     "../db/connection": { connectDatabase: async () => {} },
-    "./push-notification.service": { sendLeadAssignment: async employee => { notifications.push(employee.employeeId); return true; } }
+    "./push-notification.service": { sendLeadAssignment: async employee => { notifications.push(employee.employeeId); return pushSucceeds; } }
   };
   Module._load = function(request, parent, isMain) {
     if (parent?.filename.endsWith("lead-sheet.service.js") && mocks[request]) return mocks[request];
@@ -74,6 +140,8 @@ test("Apps Script webhook authenticates the configured Sheet and assigns each ro
     const first = await receiveLeadSheetWebhook(payload);
     assert.equal(first.success, true);
     assert.equal(first.data.status, "assigned");
+    assert.equal(first.data.sharingStatus, "Done");
+    assert.equal(first.data.notificationStatus, "Accepted");
     assert.equal(first.data.assignedEmployeeId, "EMP1");
     assert.equal(first.data.assignedEmployeeName, "Asha");
     assert.equal(first.data.leadId, "SHEETAAAAAAAAAAAAAAAA", "the script's prewritten ID becomes the saved lead ID");
@@ -81,7 +149,10 @@ test("Apps Script webhook authenticates the configured Sheet and assigns each ro
     assert.equal(leads[0].phone, "9876543210");
     assert.equal(leads[0].sheetFields.Campaign, "Meta September");
     assert.equal(leads[0].sheetFields["Assigned Employee"], "Asha");
-    assert.equal(leads[0].sheetFieldOrder.length, payload.headers.length);
+    assert.equal(leads[0].sheetFields["GlobalOne Sharing Status"], "Done");
+    assert.equal(leads[0].sharingStatus, "Done");
+    assert.equal(leads[0].notificationStatus, "Accepted");
+    assert.equal(leads[0].sheetFieldOrder.length, payload.headers.length + 2);
     assert.equal(settings.lastWebhookStatus, "assigned");
     assert.ok(settings.lastWebhookAt instanceof Date);
     const second = await receiveLeadSheetWebhook(payload);
@@ -128,7 +199,41 @@ test("Apps Script webhook authenticates the configured Sheet and assigns each ro
     assert.equal((await receiveLeadSheetWebhook({ ...payload, rowNumber: 5, values: ["Wrong Sheet", "+91 98765 43214", "Meta September", "", "", "SHEETDDDDDDDDDDDDDDDD"] })).statusCode, 409);
     const invalidPhone = await receiveLeadSheetWebhook({ ...payload, rowNumber: 4, values: ["Customer Three", "123", "Meta September", "", "", ""] });
     assert.equal(invalidPhone.data.status, "pending");
+    assert.equal(invalidPhone.data.sharingStatus, "Not Done");
     assert.equal(leads.length, 6);
+    const changedQuestionHeaders = [...payload.headers, "What property use?", "When can you visit?", "GlobalOne Sharing Status", "GlobalOne Notification Status", "GlobalOne Synced Hash"];
+    const changedQuestion = await receiveLeadSheetWebhook({ ...payload, rowNumber: 3,
+      headers: changedQuestionHeaders,
+      values: ["Customer One", "+91 98765 43333", "Meta September", "Asha", "EMP1", first.data.leadId, "Family", "Sunday", "Done", "Accepted", "new-hash"] });
+    assert.equal(changedQuestion.data.status, "existing");
+    assert.equal(changedQuestion.data.assignedEmployeeId, "EMP1");
+    assert.equal(leads[0].sheetFields["When can you visit?"], "Sunday");
+    assert.deepEqual(leads[0].sheetFieldOrder.slice(-5), changedQuestionHeaders.slice(-5));
+    assert.deepEqual(notifications, ["EMP1", "EMP2", "EMP1", "EMP2"], "question changes must not resend accepted notifications");
+    pushSucceeds = false;
+    const failedPush = await receiveLeadSheetWebhook({ ...payload, rowNumber: 10,
+      values: ["Customer Four", "9876543215", "Meta September", "", "", "SHEETFFFFFFFFFFFFFFFF"] });
+    assert.equal(failedPush.data.sharingStatus, "Done", "a saved assignment is shared even when FCM fails");
+    assert.equal(failedPush.data.notificationStatus, "Failed");
+    const failedLead = leads.find(item => item.leadId === failedPush.data.leadId);
+    assert.equal(failedLead.sharingStatus, "Done");
+    assert.equal(failedLead.notificationStatus, "Failed");
+    const attemptsBeforeCooldown = notifications.length;
+    const immediateRetry = await receiveLeadSheetWebhook({ ...payload, rowNumber: 10,
+      values: ["Customer Four", "9876543215", "Meta September", "", "", "SHEETFFFFFFFFFFFFFFFF"] });
+    assert.equal(immediateRetry.data.status, "existing");
+    assert.equal(immediateRetry.data.assignedEmployeeId, failedPush.data.assignedEmployeeId);
+    assert.equal(notifications.length, attemptsBeforeCooldown, "a one-minute script retry cannot spam FCM");
+    failedLead.notificationAttemptedAt = new Date(Date.now() - 6 * 60 * 1000);
+    pushSucceeds = true;
+    const recoveredPush = await receiveLeadSheetWebhook({ ...payload, rowNumber: 10,
+      values: ["Customer Four", "9876543215", "Meta September", "", "", "SHEETFFFFFFFFFFFFFFFF"] });
+    assert.equal(recoveredPush.data.notificationStatus, "Accepted");
+    assert.equal(recoveredPush.data.assignedEmployeeId, failedPush.data.assignedEmployeeId);
+    assert.equal(notifications.length, attemptsBeforeCooldown + 1);
+    await receiveLeadSheetWebhook({ ...payload, rowNumber: 10,
+      values: ["Customer Four", "9876543215", "Meta September", "", "", "SHEETFFFFFFFFFFFFFFFF"] });
+    assert.equal(notifications.length, attemptsBeforeCooldown + 1, "accepted FCM notification is idempotent");
     const replaced = await updateLeadSheetSettings({ sheetUrl: "https://docs.google.com/spreadsheets/d/new-sheet/edit#gid=42", employeeIds: ["EMP1", "EMP2"] });
     assert.notEqual(replaced.data.webhookSecret, saved.data.webhookSecret);
     assert.equal((await receiveLeadSheetWebhook(payload)).statusCode, 401, "old script secrets must stop working after a Sheet change");

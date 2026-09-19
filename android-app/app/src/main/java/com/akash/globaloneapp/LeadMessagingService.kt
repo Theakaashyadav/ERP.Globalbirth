@@ -48,6 +48,7 @@ class LeadMessagingService : FirebaseMessagingService() {
         val channelId = AppNotificationChannels.LEAD_ASSIGNMENTS
         val manager = getSystemService(NotificationManager::class.java)
         BadgeStore.incrementLeads(this)
+        sendBroadcast(Intent(LeadsActivity.ACTION_LEAD_ASSIGNED).setPackage(packageName))
         AppNotificationChannels.ensure(this, channelId, "Lead assignments", "New leads assigned to you")
         val intent = Intent(this, if (leadId.isBlank()) DashboardActivity::class.java else LeadDetailsActivity::class.java)
             .putExtra("leadId", leadId)
@@ -59,7 +60,8 @@ class LeadMessagingService : FirebaseMessagingService() {
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)
             .setNumber(BadgeStore.total(this))
             .setContentIntent(pendingIntent)

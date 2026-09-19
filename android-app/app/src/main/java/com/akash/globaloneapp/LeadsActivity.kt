@@ -1,6 +1,9 @@
 package com.akash.globaloneapp
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -19,16 +22,24 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import org.json.JSONArray
 import org.json.JSONObject
 
 class LeadsActivity : AppCompatActivity() {
+    companion object { const val ACTION_LEAD_ASSIGNED = "com.akash.globaloneapp.LEAD_ASSIGNED" }
+
     private lateinit var root: LinearLayout
     private lateinit var listContainer: LinearLayout
     private var leads = JSONArray()
     private var query = ""
     private var selectedTab = "new"
     private val refreshHandler = Handler(Looper.getMainLooper())
+    private val leadAssignmentReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_LEAD_ASSIGNED) load()
+        }
+    }
     private val refreshTask = object : Runnable {
         override fun run() {
             load()
@@ -46,12 +57,14 @@ class LeadsActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        ContextCompat.registerReceiver(this, leadAssignmentReceiver, IntentFilter(ACTION_LEAD_ASSIGNED), ContextCompat.RECEIVER_NOT_EXPORTED)
         refreshHandler.removeCallbacks(refreshTask)
         refreshHandler.postDelayed(refreshTask, 30_000L)
     }
 
     override fun onStop() {
         refreshHandler.removeCallbacks(refreshTask)
+        unregisterReceiver(leadAssignmentReceiver)
         super.onStop()
     }
 

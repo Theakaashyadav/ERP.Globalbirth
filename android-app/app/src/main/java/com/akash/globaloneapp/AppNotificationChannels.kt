@@ -7,7 +7,7 @@ import android.media.AudioAttributes
 import android.net.Uri
 
 object AppNotificationChannels {
-    const val LEAD_ASSIGNMENTS = "lead_assignments_custom_v2"
+    const val LEAD_ASSIGNMENTS = "lead_assignments_popup_v3"
     const val LEAD_REMINDERS = "lead_reminders_custom_v2"
     const val EMPLOYEE_ALERTS = "employee_alerts_custom_v2"
     const val APP_UPDATES = "app_updates_custom_v2"

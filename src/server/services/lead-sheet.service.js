@@ -6,15 +6,20 @@ const Lead = require("../models/Lead");
 const LeadSheetSettings = require("../models/LeadSheetSettings");
 const { connectDatabase } = require("../db/connection");
 const { sendLeadAssignment } = require("./push-notification.service");
+const { isControlHeader } = require("./lead-sheet-fields");
 
 const SETTINGS_KEY = "lead-sheet";
 const ASSIGNEE_HEADER = "Assigned Employee";
 const ASSIGNEE_ID_HEADER = "Assigned Employee ID";
 const LEAD_ID_HEADER = "GlobalOne Lead ID";
+const SHARING_STATUS_HEADER = "GlobalOne Sharing Status";
+const NOTIFICATION_STATUS_HEADER = "GlobalOne Notification Status";
 let tokenCache = null;
 let syncPromise = null;
 const rowCache = new Map();
 const ROW_CACHE_MS = 5 * 60 * 1000;
+const NOTIFICATION_RETRY_MS = 5 * 60 * 1000;
+const notificationInFlight = new Map();
 
 function clean(value) { return String(value ?? "").trim(); }
 
@@ -123,11 +128,17 @@ function fieldsForRow(headers, row) {
 
 function leadData(fields) {
   const entries = Object.entries(fields);
-  const find = patterns => entries.find(([label, value]) => value && patterns.some(pattern => pattern.test(normalizeHeader(label))))?.[1] || "";
-  const name = find([/^fullname$/, /^leadname$/, /^name$/, /^customername$/, /^firstname$/]);
-  const lastName = find([/^lastname$/]);
-  const phone = find([/^phonenumber$/, /^phone$/, /^phoneno$/, /^mobilenumber$/, /^mobile$/, /^mobileno$/, /^contactnumber$/, /^contact$/, /^contactno$/, /^whatsappnumber$/, /^whatsapp$/, /^whatsappno$/]);
-  const city = find([/^city$/, /^location$/]);
+  const find = (exact, fallback) => {
+    for (const wanted of exact) {
+      const match = entries.find(([label, value]) => value && normalizeHeader(label) === wanted);
+      if (match) return match[1];
+    }
+    return entries.find(([label, value]) => value && fallback.test(normalizeHeader(label)))?.[1] || "";
+  };
+  const name = find(["fullname", "leadname", "name", "customername", "firstname"], /(full|customer|lead|first)name$/);
+  const lastName = find(["lastname"], /lastname$/);
+  const phone = find(["phonenumber", "phone", "phoneno", "mobilenumber", "mobile", "mobileno", "contactnumber", "contact", "contactno", "whatsappnumber", "whatsapp", "whatsappno"], /(phone|mobile|whatsapp|contact)(number|no)?$/);
+  const city = find(["city", "location"], /(city|location)$/);
   return { name: clean(`${name} ${lastName}`) || "Lead", phone: clean(phone).replace(/\D/g, "").slice(-10), city };
 }
 
@@ -143,8 +154,7 @@ function sourceKey(settings, rowNumber, fields) {
 }
 
 function sourceFields(fields) {
-  return Object.entries(fields).filter(([label]) => ![ASSIGNEE_HEADER, ASSIGNEE_ID_HEADER, LEAD_ID_HEADER]
-    .some(control => normalizeHeader(label) === normalizeHeader(control)));
+  return Object.entries(fields).filter(([label]) => !isControlHeader(label));
 }
 
 function sameSourceFields(lead, fields) {
@@ -278,20 +288,55 @@ async function writeRows(settings, tabName, items) {
   if (data.length) await googleRequest("POST", settings.spreadsheetId, "/values:batchUpdate", { valueInputOption: "RAW", data });
 }
 
-async function ensureAssignmentHeaders(settings, tabName, rawHeaders) {
+async function ensureAssignmentHeaders(settings, tabName, rawHeaders, headerRowNumber = 1) {
   const headers = [...rawHeaders];
   const added = [];
-  for (const name of [ASSIGNEE_HEADER, ASSIGNEE_ID_HEADER, LEAD_ID_HEADER]) {
+  for (const name of [ASSIGNEE_HEADER, ASSIGNEE_ID_HEADER, LEAD_ID_HEADER, SHARING_STATUS_HEADER, NOTIFICATION_STATUS_HEADER]) {
     if (headerIndex(headers, name) < 0) { added.push([headers.length, name]); headers.push(name); }
   }
-  if (added.length) await writeCells(settings, tabName, 1, added);
+  if (added.length) await writeCells(settings, tabName, headerRowNumber, added);
   return headers;
+}
+
+function leadHeaderRowIndex(rows) {
+  const phoneNames = new Set(["phonenumber", "phone", "phoneno", "mobilenumber", "mobile", "mobileno", "contactnumber", "contact", "contactno", "whatsappnumber", "whatsapp", "whatsappno"]);
+  const nameNames = new Set(["fullname", "leadname", "name", "customername", "firstname"]);
+  let selected = null;
+  for (let index = 0; index < Math.min(rows.length, 10); index += 1) {
+    const headers = rows[index].map(normalizeHeader);
+    if (!headers.some(header => phoneNames.has(header) || /phone|mobile|whatsapp|contactnumber/.test(header))) continue;
+    const score = (headers.some(header => nameNames.has(header)) ? 100 : 0) + headers.filter(Boolean).length;
+    if (!selected || score > selected.score) selected = { index, score };
+  }
+  if (!selected) throw new Error("The selected Sheet tab needs a phone/mobile column heading in rows 1-10. Check the lead tab and its header row.");
+  return selected.index;
 }
 
 function validWebhookSecret(received, expected) {
   const supplied = Buffer.from(clean(received));
   const stored = Buffer.from(clean(expected));
   return supplied.length === 64 && stored.length === 64 && crypto.timingSafeEqual(supplied, stored);
+}
+
+async function notifyAssignedLead(lead, employee) {
+  if (lead.notificationStatus === "Accepted") return lead;
+  const lastAttempt = lead.notificationAttemptedAt ? new Date(lead.notificationAttemptedAt).getTime() : 0;
+  if (lastAttempt && Date.now() - lastAttempt < NOTIFICATION_RETRY_MS) return lead;
+  if (notificationInFlight.has(lead.leadId)) return notificationInFlight.get(lead.leadId);
+  const attempt = (async () => {
+    const attemptedAt = new Date();
+    await Lead.updateOne({ _id: lead._id }, { $set: { notificationStatus: "Pending", notificationAttemptedAt: attemptedAt } });
+    let accepted = false;
+    try { accepted = await sendLeadAssignment(employee, lead, "Google Sheet"); }
+    catch (error) { console.error("Lead assignment push failed:", error); }
+    const notificationStatus = accepted ? "Accepted" : "Failed";
+    const notificationAcceptedAt = accepted ? new Date() : null;
+    await Lead.updateOne({ _id: lead._id }, { $set: { notificationStatus, notificationAttemptedAt: attemptedAt, notificationAcceptedAt } });
+    return { ...lead, notificationStatus, notificationAttemptedAt: attemptedAt, notificationAcceptedAt };
+  })();
+  notificationInFlight.set(lead.leadId, attempt);
+  try { return await attempt; }
+  finally { notificationInFlight.delete(lead.leadId); }
 }
 
 async function receiveLeadSheetWebhook(payload = {}) {
@@ -338,23 +383,22 @@ async function processLeadSheetWebhook(payload, settings) {
   const fields = fieldsForRow(headers, values);
   const assignedIndex = headerIndex(headers, ASSIGNEE_HEADER);
   const assignedIdIndex = headerIndex(headers, ASSIGNEE_ID_HEADER);
-  const globalIdIndex = headerIndex(headers, LEAD_ID_HEADER);
-  const hasLeadData = values.some((value, index) => value && ![assignedIndex, assignedIdIndex, globalIdIndex].includes(index));
-  if (!hasLeadData) return { success: true, data: { status: "pending", leadId: "", assignedEmployeeId: "", assignedEmployeeName: "", sheetRowNumber: rowNumber } };
+  const hasLeadData = values.some((value, index) => value && !isControlHeader(headers[index]));
+  if (!hasLeadData) return { success: true, data: { status: "pending", sharingStatus: "Not Done", notificationStatus: "Pending", leadId: "", assignedEmployeeId: "", assignedEmployeeName: "", sheetRowNumber: rowNumber } };
 
   const lookup = await findSheetLead({ ...settings, sheetTabId }, rowNumber, fields);
   if (lookup.conflict) return { success: false, statusCode: 409, message: "This Sheet row has a GlobalOne ID or assigned employee that does not match its saved lead. Check the row before retrying." };
   const { key, globalId } = lookup;
   let lead = lookup.lead;
   if (!lead && assignedIndex >= 0 && clean(values[assignedIndex])) {
-    return { success: true, data: { status: "external", leadId: globalId, assignedEmployeeId: assignedIdIndex < 0 ? "" : clean(values[assignedIdIndex]), assignedEmployeeName: clean(values[assignedIndex]), sheetRowNumber: rowNumber } };
+    return { success: true, data: { status: "external", sharingStatus: "Not Done", notificationStatus: "Pending", leadId: globalId, assignedEmployeeId: assignedIdIndex < 0 ? "" : clean(values[assignedIdIndex]), assignedEmployeeName: clean(values[assignedIndex]), sheetRowNumber: rowNumber } };
   }
 
   let status = "existing";
   if (!lead) {
     const person = leadData(fields);
     if (!/^[0-9]{10}$/.test(person.phone)) {
-      return { success: true, data: { status: "pending", leadId: "", assignedEmployeeId: "", assignedEmployeeName: "", sheetRowNumber: rowNumber } };
+      return { success: true, data: { status: "pending", sharingStatus: "Not Done", notificationStatus: "Pending", leadId: "", assignedEmployeeId: "", assignedEmployeeName: "", sheetRowNumber: rowNumber } };
     }
     const employees = await activeSelectedEmployees(settings.employeeIds);
     if (!employees.length) return { success: false, statusCode: 409, message: "Select at least one active Sales employee in the dashboard." };
@@ -375,13 +419,14 @@ async function processLeadSheetWebhook(payload, settings) {
         marketingAssignedTlId: employee.designation === "TL" ? employee.employeeId : employee.teamLeadId || "",
         assignmentStage: employee.designation,
         assignedAt: new Date(),
+        sharingStatus: "Done",
+        notificationStatus: "Pending",
         firstCallDeadline: null,
         returnedToMarketingAt: null,
         status: "New"
       });
       lead = created.toObject();
       status = "assigned";
-      await sendLeadAssignment(employee, lead, "Google Sheet").catch(error => console.error("Lead assignment push failed:", error));
     } catch (error) {
       if (error.code !== 11000) throw error;
       const raced = await findSheetLead({ ...settings, sheetTabId }, rowNumber, fields);
@@ -391,25 +436,30 @@ async function processLeadSheetWebhook(payload, settings) {
   }
 
   const assignee = await Employee.findOne({ employeeId: lead.assignedEmployeeId })
-    .select({ fullName: 1, employeeId: 1 }).lean();
+    .select({ fullName: 1, employeeId: 1, pushToken: 1 }).lean();
   if (!assignee) return { success: false, statusCode: 409, message: "The assigned employee no longer exists. Restore that employee before retrying." };
+  lead = await notifyAssignedLead(lead, assignee);
   const finalFields = { ...fields,
     [ASSIGNEE_HEADER]: assignee.fullName,
     [ASSIGNEE_ID_HEADER]: assignee.employeeId,
-    [LEAD_ID_HEADER]: lead.leadId };
+    [LEAD_ID_HEADER]: lead.leadId,
+    [SHARING_STATUS_HEADER]: "Done",
+    [NOTIFICATION_STATUS_HEADER]: lead.notificationStatus || "Pending" };
   const person = leadData(finalFields);
   const existingFields = lead.sheetFields instanceof Map ? Object.fromEntries(lead.sheetFields) : (lead.sheetFields || {});
   if (JSON.stringify(existingFields) !== JSON.stringify(finalFields) ||
       JSON.stringify(lead.sheetFieldOrder || []) !== JSON.stringify(Object.keys(finalFields)) ||
-      lead.sheetRowNumber !== rowNumber) {
+      lead.sheetRowNumber !== rowNumber || lead.sharingStatus !== "Done") {
     await Lead.updateOne({ _id: lead._id }, { $set: {
       sheetFields: finalFields, sheetFieldOrder: Object.keys(finalFields), sheetRowNumber: rowNumber,
-      name: person.name, ...(person.phone ? { phone: person.phone } : {}), city: person.city
+      name: person.name, ...(person.phone ? { phone: person.phone } : {}), city: person.city,
+      sharingStatus: "Done"
     } });
   }
   return { success: true, data: {
     status, leadId: lead.leadId, assignedEmployeeId: assignee.employeeId,
-    assignedEmployeeName: assignee.fullName, sheetRowNumber: rowNumber
+    assignedEmployeeName: assignee.fullName, sheetRowNumber: rowNumber,
+    sharingStatus: "Done", notificationStatus: lead.notificationStatus || "Pending"
   } };
 }
 
@@ -431,12 +481,15 @@ async function runSync(force = false) {
     if (!employees.length) throw new Error("None of the selected sales employees is active.");
     const { tab, tabName, rows } = await readSheet(settings);
     if (!rows.length) throw new Error("The Sheet needs a header row before leads can be imported.");
+    const headerRowIndex = leadHeaderRowIndex(rows);
     const sourceWidth = rows.reduce((width, row) => Math.max(width, row.length), 0);
-    const sourceHeaders = Array.from({ length: sourceWidth }, (_, index) => rows[0][index] || "");
-    const headers = uniqueHeaders(await ensureAssignmentHeaders(settings, tabName, sourceHeaders));
+    const sourceHeaders = Array.from({ length: sourceWidth }, (_, index) => rows[headerRowIndex][index] || "");
+    const headers = uniqueHeaders(await ensureAssignmentHeaders(settings, tabName, sourceHeaders, headerRowIndex + 1));
     const assignedIndex = headerIndex(headers, ASSIGNEE_HEADER);
     const assignedIdIndex = headerIndex(headers, ASSIGNEE_ID_HEADER);
     const globalIdIndex = headerIndex(headers, LEAD_ID_HEADER);
+    const sharingIndex = headerIndex(headers, SHARING_STATUS_HEADER);
+    const notificationIndex = headerIndex(headers, NOTIFICATION_STATUS_HEADER);
     const sourceSettings = { ...settings, sheetTabId: tab.sheetId };
     const assigneeCache = new Map(employees.map(employee => [employee.employeeId, employee]));
     const pendingWrites = [];
@@ -449,12 +502,13 @@ async function runSync(force = false) {
       const changes = JSON.stringify(existingFields) !== JSON.stringify(finalFields) ||
         JSON.stringify(lead.sheetFieldOrder || []) !== JSON.stringify(headers) ||
         lead.sheetRowNumber !== rowNumber || lead.name !== currentLeadData.name ||
-        (currentLeadData.phone && lead.phone !== currentLeadData.phone) || lead.city !== currentLeadData.city;
+        (currentLeadData.phone && lead.phone !== currentLeadData.phone) || lead.city !== currentLeadData.city ||
+        lead.sharingStatus !== "Done";
       if (changes) await Lead.updateOne({ _id: lead._id }, { $set: {
         sheetFields: finalFields, sheetFieldOrder: headers, sheetRowNumber: rowNumber,
         name: currentLeadData.name,
         ...(currentLeadData.phone ? { phone: currentLeadData.phone } : {}),
-        city: currentLeadData.city
+        city: currentLeadData.city, sharingStatus: "Done"
       } });
       markHandled(cacheKey, row);
     };
@@ -467,10 +521,10 @@ async function runSync(force = false) {
         await persistRow(item);
       }
     };
-    for (let i = 1; i < rows.length; i += 1) {
+    for (let i = headerRowIndex + 1; i < rows.length; i += 1) {
       const rowNumber = i + 1;
       const row = rows[i];
-      const meaningful = row.some((value, index) => clean(value) && ![assignedIndex, assignedIdIndex, globalIdIndex].includes(index));
+      const meaningful = row.some((value, index) => clean(value) && !isControlHeader(headers[index]));
       if (!meaningful) continue;
       const cacheKey = `${settings.spreadsheetId}:${tab.sheetId}:${rowNumber}`;
       const fingerprint = rowFingerprint(headers, row);
@@ -506,13 +560,14 @@ async function runSync(force = false) {
             marketingAssignedTlId: employee.designation === "TL" ? employee.employeeId : employee.teamLeadId || "",
             assignmentStage: employee.designation,
             assignedAt: new Date(),
+            sharingStatus: "Done",
+            notificationStatus: "Pending",
             firstCallDeadline: null,
             returnedToMarketingAt: null,
             status: "New"
           });
           lead = lead.toObject();
           importedCount += 1;
-          await sendLeadAssignment(employee, lead, "Google Sheet");
         } catch (error) {
           if (error.code !== 11000) throw error;
           lead = await Lead.findOne({ sheetSourceKey: key }).lean();
@@ -521,18 +576,23 @@ async function runSync(force = false) {
       } else skippedCount += 1;
       let assignee = assigneeCache.get(lead.assignedEmployeeId);
       if (!assignee) {
-        assignee = await Employee.findOne({ employeeId: lead.assignedEmployeeId }).select({ fullName: 1, employeeId: 1 }).lean();
+        assignee = await Employee.findOne({ employeeId: lead.assignedEmployeeId }).select({ fullName: 1, employeeId: 1, pushToken: 1 }).lean();
         if (assignee) assigneeCache.set(lead.assignedEmployeeId, assignee);
       }
       if (!assignee) { pendingCount += 1; markHandled(cacheKey, row, "pending"); continue; }
+      lead = await notifyAssignedLead(lead, assignee);
       const cells = [];
       if (clean(row[assignedIndex]) !== assignee.fullName) cells.push([assignedIndex, assignee.fullName]);
       if (clean(row[assignedIdIndex]) !== assignee.employeeId) cells.push([assignedIdIndex, assignee.employeeId]);
       if (clean(row[globalIdIndex]) !== lead.leadId) cells.push([globalIdIndex, lead.leadId]);
+      if (clean(row[sharingIndex]) !== "Done") cells.push([sharingIndex, "Done"]);
+      if (clean(row[notificationIndex]) !== (lead.notificationStatus || "Pending")) cells.push([notificationIndex, lead.notificationStatus || "Pending"]);
       const finalFields = { ...fields,
         [headers[assignedIndex]]: assignee.fullName,
         [headers[assignedIdIndex]]: assignee.employeeId,
-        [headers[globalIdIndex]]: lead.leadId };
+        [headers[globalIdIndex]]: lead.leadId,
+        [headers[sharingIndex]]: "Done",
+        [headers[notificationIndex]]: lead.notificationStatus || "Pending" };
       const currentLeadData = leadData(finalFields);
       const item = { lead, finalFields, currentLeadData, rowNumber, row, cacheKey, cells };
       if (cells.length) {

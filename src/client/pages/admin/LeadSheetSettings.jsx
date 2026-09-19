@@ -85,7 +85,7 @@ export default function LeadSheetSettings() {
   }
 
   return <main className="screen leadSheetPage"><div className="wide">
-    <div className="adminHubTopbar"><PageHeader icon={FileSpreadsheet} title="Lead Sheet Connection" subtitle="Send new Sheet leads to selected employees and write each employee's name back to the Sheet." tone="green" /><Link className="btn dark" to="/admin"><ArrowLeft size={17}/> Admin Dashboard</Link></div>
+    <div className="adminHubTopbar"><PageHeader icon={FileSpreadsheet} title="Lead Sheet Connection" subtitle="Send new Sheet leads to selected employees and track assignment status in the Sheet." tone="green" /><Link className="btn dark" to="/admin"><ArrowLeft size={17}/> Admin Dashboard</Link></div>
 
     <section className="panel leadSheetInstructions">
       <h2>Connect your Google Sheet</h2>
@@ -96,8 +96,10 @@ export default function LeadSheetSettings() {
         <li>Choose <b>setupGlobalOneLeadSync</b> in the Apps Script function menu, click <b>Run</b>, and approve Google's permissions once. The script then starts sending leads automatically.</li>
       </ol>
       <p className="muted">Google Form submissions and manual Sheet edits can run right away. Meta and other API writes do not fire Google Sheet edit triggers, so the script checks for them every minute.</p>
+      <p className="muted">Meta's custom question columns are sent with each lead automatically. You can add or rename question columns in the same tab without changing the script.</p>
+      <p className="muted"><b>GlobalOne Sharing Status</b> shows <b>Done</b> after the employee assignment is saved, or <b>Not Done</b> while a row waits. <b>GlobalOne Notification Status</b> tracks whether the push service accepted the alert; it does not confirm that the employee's phone displayed it.</p>
       <p className="muted">A completely empty lead tab can be connected before the first Meta lead arrives. The script waits for Meta to add its column headings.</p>
-      <p className="muted">If setup cannot find the lead columns, check that the saved URL points to the lead tab. Save the corrected link, copy the new script, and run setup again.</p>
+      <p className="muted">If setup cannot find the lead columns, check that the saved URL points to the lead tab. If Meta moves leads to another tab, save that tab's link, copy the new script, and run setup again.</p>
     </section>
 
     <form className="panel leadSheetForm" onSubmit={save}>
@@ -112,7 +114,7 @@ export default function LeadSheetSettings() {
     </form>
 
     <section className="panel leadSheetScriptPanel">
-      <div className="leadSheetScriptHeading"><div><h2>Apps Script for this Sheet</h2><p className="muted">Copy this code after saving your Sheet link. It calls the web API and writes the assigned employee, employee ID, and lead ID into the Sheet.</p></div><button className="btn dark" type="button" onClick={copyScript} disabled={!canCopyScript}>{copied ? <Check size={17}/> : <Clipboard size={17}/>} {copied ? "Copied" : "Copy Apps Script"}</button></div>
+      <div className="leadSheetScriptHeading"><div><h2>Apps Script for this Sheet</h2><p className="muted">Copy this code after saving your Sheet link. It sends every lead column to the web API and writes the employee name, sharing status, and notification status into the Sheet. Sharing status becomes <b>Done</b> only after the assignment is saved.</p></div><button className="btn dark" type="button" onClick={copyScript} disabled={!canCopyScript}>{copied ? <Check size={17}/> : <Clipboard size={17}/>} {copied ? "Copied" : "Copy Apps Script"}</button></div>
       {changed ? <p className="leadSheetScriptNotice">Save your changes before copying the script. A new Sheet link creates a new connection key.</p> : script.error ? <p className="leadSheetScriptNotice">{script.error}</p> : <details className="leadSheetScriptPreview"><summary><FileCode2 size={16}/> Show generated code</summary><textarea readOnly value={script.code} onFocus={event => event.target.select()} aria-label="Generated Google Apps Script" /></details>}
       {window.location.protocol !== "https:" && <p className="leadSheetScriptNotice">Open the hosted HTTPS admin dashboard to copy the script. Google Apps Script cannot call a local or HTTP web address.</p>}
     </section>

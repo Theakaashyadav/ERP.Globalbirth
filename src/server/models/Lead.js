@@ -86,6 +86,10 @@ const leadSchema = new mongoose.Schema(
     sheetSpreadsheetId: { type: String, default: "" },
     sheetTabId: { type: Number, default: null },
     sheetRowNumber: { type: Number, default: null },
+    sharingStatus: { type: String, enum: ["Done", "Not Done"], default: "Not Done" },
+    notificationStatus: { type: String, enum: ["Pending", "Accepted", "Failed"], default: "Pending" },
+    notificationAttemptedAt: { type: Date, default: null },
+    notificationAcceptedAt: { type: Date, default: null },
     assignedEmployeeId: {
       type: String,
       default: "",

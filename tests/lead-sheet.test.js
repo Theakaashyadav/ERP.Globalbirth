@@ -124,6 +124,15 @@ test("Sheet sync assigns each valid row once, preserves every column, and writes
     assert.equal(sorted.data.importedCount, 0, "sorting rows with GlobalOne IDs must not create new leads");
     assert.equal(leads[0].assignedEmployeeId, originalOwner);
     assert.equal(rows[1][7], insertedId);
+    rows.unshift(["Meta export information; lead headings are on the next row"]);
+    rows.push(["Header Shifted Lead", "9876543215", "META-4", "October Campaign", ""]);
+    const shifted = await syncLeadSheet({ _dashboardSession: true });
+    assert.equal(shifted.success, true, shifted.message);
+    assert.equal(shifted.data.importedCount, 1, "a lead below a non-first header row must be imported");
+    assert.equal(rows[0].length, 1, "manual sync must not write control headers into an introductory row");
+    assert.equal(rows[1][5], "Assigned Employee", "manual sync must keep control headers on the actual lead header row");
+    assert.equal(rows.at(-1)[5], "Ravi", "the new lead owner must be written to its actual row");
+    assert.equal(leads[0].assignedEmployeeId, originalOwner, "moving the header row must preserve existing ownership");
   } finally {
     Module._load = originalLoad;
     global.fetch = originalFetch;

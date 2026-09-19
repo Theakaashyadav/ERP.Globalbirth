@@ -28,7 +28,7 @@
 
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="lead_assignments_custom_v2" />
+            android:value="lead_assignments_popup_v3" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

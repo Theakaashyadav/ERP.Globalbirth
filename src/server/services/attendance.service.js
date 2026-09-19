@@ -8,6 +8,7 @@ const dashboardCredentials = require("./dashboard-credential.service");
 const officeWifi = require("./office-wifi.service");
 const { sendLeadAssignment, sendEmployeeTestPush } = require("./push-notification.service");
 const { hasEmployeeFeature } = require("./mobile-feature.service");
+const { employeeSheetData } = require("./lead-sheet-fields");
 
 function cleanText(value) {
   return String(value || "").trim();
@@ -163,10 +164,16 @@ function getLeadAttemptStats(lead) {
   };
 }
 
-function mapLead(lead, employeesById = new Map()) {
+function mapLead(lead, employeesById = new Map(), employeeView = false) {
   const stats = getLeadAttemptStats(lead);
   const assignedEmployee = employeesById.get(lead.assignedEmployeeId);
   const marketingAssignedTl = employeesById.get(lead.marketingAssignedTlId);
+  const sheetData = employeeView
+    ? employeeSheetData(lead.sheetFields, lead.sheetFieldOrder)
+    : {
+        sheetFields: lead.sheetFields instanceof Map ? Object.fromEntries(lead.sheetFields) : (lead.sheetFields || {}),
+        sheetFieldOrder: lead.sheetFieldOrder?.length ? lead.sheetFieldOrder : Object.keys(lead.sheetFields || {})
+      };
 
   return {
     leadId: lead.leadId,
@@ -174,8 +181,9 @@ function mapLead(lead, employeesById = new Map()) {
     phone: lead.phone,
     city: lead.city || "",
     source: lead.source || "",
-    sheetFields: lead.sheetFields instanceof Map ? Object.fromEntries(lead.sheetFields) : (lead.sheetFields || {}),
-    sheetFieldOrder: lead.sheetFieldOrder?.length ? lead.sheetFieldOrder : Object.keys(lead.sheetFields || {}),
+    ...sheetData,
+    sharingStatus: lead.sharingStatus || (lead.sheetSourceKey ? "Done" : "Not Done"),
+    notificationStatus: lead.notificationStatus || "Pending",
     assignedEmployeeId: lead.assignedEmployeeId,
     assignedEmployeeName: assignedEmployee?.fullName || "",
     assignedAt: lead.assignedAt ? lead.assignedAt.toISOString() : "",
@@ -216,13 +224,13 @@ function mapLead(lead, employeesById = new Map()) {
   };
 }
 
-async function mapLeadWithEmployeeNames(lead) {
+async function mapLeadWithEmployeeNames(lead, employeeView = false) {
   if (!lead) return null;
   const employeeIds = [...new Set([lead.assignedEmployeeId, lead.marketingAssignedTlId].filter(Boolean))];
   const employees = employeeIds.length
     ? await Employee.find({ employeeId: { $in: employeeIds } }).select({ employeeId: 1, fullName: 1 }).lean()
     : [];
-  return mapLead(lead, new Map(employees.map(employee => [employee.employeeId, employee])));
+  return mapLead(lead, new Map(employees.map(employee => [employee.employeeId, employee])), employeeView);
 }
 
 async function getEmployees() {
@@ -772,7 +780,7 @@ async function getEmployeeLeads(payload) {
 
   const employee = await Employee.findOne({ employeeId }).select({ employeeId: 1, fullName: 1 }).lean();
   const employeesById = new Map(employee ? [[employee.employeeId, employee]] : []);
-  const mapped = leads.map(lead => mapLead(lead, employeesById)).filter(lead => {
+  const mapped = leads.map(lead => mapLead(lead, employeesById, true)).filter(lead => {
     if (!search) return true;
     return (
       lead.name.toLowerCase().includes(search) ||
@@ -805,7 +813,7 @@ async function getTeamLeadWorkspaceLeads(payload) {
   ]);
   const people = [teamLead, ...executives];
   const employeesById = new Map(people.map(employee => [employee.employeeId, employee]));
-  return { success: true, data: { leads: leads.map(lead => mapLead(lead, employeesById)), executives: executives.map(mapTeamMember) } };
+  return { success: true, data: { leads: leads.map(lead => mapLead(lead, employeesById, true)), executives: executives.map(mapTeamMember) } };
 }
 
 async function getLeadDetails(payload) {
@@ -829,7 +837,7 @@ async function getLeadDetails(payload) {
 
   return {
     success: Boolean(lead),
-    data: await mapLeadWithEmployeeNames(lead),
+    data: await mapLeadWithEmployeeNames(lead, true),
     message: lead ? "" : "Lead not found."
   };
 }
@@ -931,7 +939,7 @@ async function recordLeadCall(payload) {
   if (externalCallId) {
     const existing = await Lead.findOne({ ...query, "attempts.externalCallId": externalCallId }).lean();
     if (existing) {
-      return { success: true, data: await mapLeadWithEmployeeNames(existing), message: "Call attempt already synced.", duplicate: true };
+      return { success: true, data: await mapLeadWithEmployeeNames(existing, true), message: "Call attempt already synced.", duplicate: true };
     }
   }
 
@@ -964,7 +972,7 @@ async function recordLeadCall(payload) {
 
   return {
     success: Boolean(lead),
-    data: await mapLeadWithEmployeeNames(lead),
+    data: await mapLeadWithEmployeeNames(lead, true),
     message: lead ? "Call attempt saved." : "Matching lead not found."
   };
 }
@@ -1057,7 +1065,7 @@ async function updateLeadRemark(payload) {
 
   return {
     success: Boolean(lead),
-    data: await mapLeadWithEmployeeNames(lead),
+    data: await mapLeadWithEmployeeNames(lead, true),
     message: lead ? "Lead updated." : "Lead not found."
   };
 }

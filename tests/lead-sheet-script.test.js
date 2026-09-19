@@ -1,8 +1,18 @@
 const assert = require("node:assert/strict");
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
+
+function fakeUtilities() {
+  return {
+    getUuid: () => "12345678-90ab-cdef-1111-222222222222",
+    DigestAlgorithm: { SHA_256: "SHA_256" },
+    Charset: { UTF_8: "UTF_8" },
+    computeDigest: (_algorithm, value) => [...crypto.createHash("sha256").update(value).digest()]
+  };
+}
 
 function generateScript(sheetUrl = "https://docs.google.com/spreadsheets/d/testSheet123/edit#gid=42") {
   const file = path.join(__dirname, "../src/client/pages/admin/leadSheetScript.js");
@@ -29,7 +39,7 @@ test("generated Apps Script parses, installs triggers, and sends a lead row", ()
   const sheet = {
     getSheetId: () => 42,
     getLastColumn: () => Math.max(...cells.map(row => row.length)),
-    getMaxColumns: () => 6,
+    getMaxColumns: () => 10,
     getLastRow: () => cells.length,
     getRange(row, column, rowCount = 1, columnCount = 1) {
       return {
@@ -58,7 +68,7 @@ test("generated Apps Script parses, installs triggers, and sends a lead row", ()
       }
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
-    Utilities: { getUuid: () => "12345678-90ab-cdef-1111-222222222222" },
+    Utilities: fakeUtilities(),
     PropertiesService: { getScriptProperties: () => ({
       getProperty: key => savedProperties.get(key),
       setProperty: (key, value) => savedProperties.set(key, value)
@@ -68,7 +78,8 @@ test("generated Apps Script parses, installs triggers, and sends a lead row", ()
       return {
         getResponseCode: () => 200,
         getContentText: () => JSON.stringify({ success: true, data: {
-          status: "assigned", leadId: "SHEET1234567890ABCDEF", assignedEmployeeId: "EMP1", assignedEmployeeName: "Sales One"
+          status: "assigned", leadId: "SHEET1234567890ABCDEF", assignedEmployeeId: "EMP1", assignedEmployeeName: "Sales One",
+          sharingStatus: "Done", notificationStatus: "Accepted"
         } })
       };
     } }
@@ -86,16 +97,17 @@ test("generated Apps Script parses, installs triggers, and sends a lead row", ()
     spreadsheetId: "testSheet123",
     sheetTabId: 42,
     rowNumber: 2,
-    headers: ["Full Name", "Phone", "Assigned Employee", "Assigned Employee ID", "GlobalOne Lead ID"],
-    values: ["Ada Example", "9876543210", "", "", "SHEET1234567890ABCDEF"]
+    headers: ["Full Name", "Phone", "Assigned Employee", "Assigned Employee ID", "GlobalOne Lead ID", "GlobalOne Sharing Status", "GlobalOne Notification Status", "GlobalOne Synced Hash"],
+    values: ["Ada Example", "9876543210", "", "", "SHEET1234567890ABCDEF", "Not Done", "Pending", ""]
   });
-  assert.deepEqual(cells[1].slice(2), ["Sales One", "EMP1", "SHEET1234567890ABCDEF"]);
+  const expectedHash = crypto.createHash("sha256").update(JSON.stringify([["Full Name", "Ada Example"], ["Phone", "9876543210"]])).digest("hex");
+  assert.deepEqual(cells[1].slice(2), ["Sales One", "EMP1", "SHEET1234567890ABCDEF", "Done", "Accepted", expectedHash]);
   vm.runInContext("sendNewLeadsToGlobalOne()", context);
   assert.equal(requests.length, 1, "assigned rows are not sent twice");
   cells.push(["External Lead", "9123456789", "Other Sales", "", ""]);
   vm.runInContext("sendNewLeadsToGlobalOne()", context);
   assert.equal(requests.length, 1, "rows already assigned outside GlobalOne are preserved");
-  assert.deepEqual(cells[2].slice(2), ["Other Sales", "", ""]);
+  assert.deepEqual(cells[2].slice(2), ["Other Sales", "", "", "Not Done"]);
 });
 
 function sheetFixture(id, name, cells) {
@@ -103,7 +115,7 @@ function sheetFixture(id, name, cells) {
     getSheetId: () => id,
     getName: () => name,
     getLastColumn: () => Math.max(0, ...cells.map(row => row.length)),
-    getMaxColumns: () => 6,
+    getMaxColumns: () => 20,
     getLastRow: () => cells.length,
     getRange(row, column, rowCount = 1, columnCount = 1) {
       return {
@@ -115,7 +127,10 @@ function sheetFixture(id, name, cells) {
   };
 }
 
-function runSetup(source, sheets, oldTriggers = []) {
+function runSetup(source, sheets, oldTriggers = [], responseForCall = () => ({
+  status: "assigned", leadId: "SHEET1234567890ABCDEF", assignedEmployeeId: "EMP1", assignedEmployeeName: "Sales One",
+  sharingStatus: "Done", notificationStatus: "Accepted"
+})) {
   const requests = [];
   const triggers = [];
   const properties = new Map();
@@ -134,13 +149,11 @@ function runSetup(source, sheets, oldTriggers = []) {
       }
     },
     LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() {} }) },
-    Utilities: { getUuid: () => "12345678-90ab-cdef-1111-222222222222" },
+    Utilities: fakeUtilities(),
     PropertiesService: { getScriptProperties: () => ({ getProperty: key => properties.get(key), setProperty: (key, value) => properties.set(key, value) }) },
     UrlFetchApp: { fetch(url, options) {
       requests.push({ url, options });
-      return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ success: true, data: {
-        status: "assigned", leadId: "SHEET1234567890ABCDEF", assignedEmployeeId: "EMP1", assignedEmployeeName: "Sales One"
-      } }) };
+      return { getResponseCode: () => 200, getContentText: () => JSON.stringify({ success: true, data: responseForCall(requests.length) }) };
     } }
   };
   vm.createContext(context);
@@ -164,8 +177,8 @@ test("finds the lead tab and headings below blank rows when the URL has no gid",
   assert.equal(fixture.requests.length, 1);
   assert.equal(JSON.parse(fixture.requests[0].options.payload).sheetTabId, 42);
   assert.equal(JSON.parse(fixture.requests[0].options.payload).rowNumber, 4);
-  assert.deepEqual(leadCells[2].slice(2), ["Assigned Employee", "Assigned Employee ID", "GlobalOne Lead ID"]);
-  assert.deepEqual(leadCells[3].slice(2), ["Sales One", "EMP1", "SHEET1234567890ABCDEF"]);
+  assert.deepEqual(leadCells[2].slice(2), ["Assigned Employee", "Assigned Employee ID", "GlobalOne Lead ID", "GlobalOne Sharing Status", "GlobalOne Notification Status", "GlobalOne Synced Hash"]);
+  assert.deepEqual(leadCells[3].slice(2, 7), ["Sales One", "EMP1", "SHEET1234567890ABCDEF", "Done", "Accepted"]);
 });
 
 test("explicit gid never switches to another tab and setup leaves no failing triggers", () => {
@@ -202,7 +215,7 @@ test("an empty selected tab waits for Meta to add headings and a lead", () => {
   fixture.scan();
   assert.equal(fixture.requests.length, 1);
   assert.equal(JSON.parse(fixture.requests[0].options.payload).sheetTabId, 42);
-  assert.deepEqual(cells[1].slice(2), ["Sales One", "EMP1", "SHEET1234567890ABCDEF"]);
+  assert.deepEqual(cells[1].slice(2, 7), ["Sales One", "EMP1", "SHEET1234567890ABCDEF", "Done", "Accepted"]);
 });
 
 test("a link without gid reports ambiguous lead tabs instead of choosing one", () => {
@@ -221,4 +234,47 @@ test("the active fragment gid overrides a stale query gid", () => {
   const fixture = runSetup(source, [blankTab, leads]);
   fixture.run();
   assert.equal(JSON.parse(fixture.requests[0].options.payload).sheetTabId, 42);
+});
+
+test("changed Meta question headers and answers are resent without changing the owner", () => {
+  const source = generateScript();
+  const cells = [["Full Name", "Your phone number", "Which product do you want?"], ["Ada", "9876543210", "Product A"]];
+  const fixture = runSetup(source, [sheetFixture(42, "Meta Leads", cells)]);
+  fixture.run();
+  const firstPayload = JSON.parse(fixture.requests[0].options.payload);
+  assert.equal(firstPayload.headers[2], "Which product do you want?");
+  assert.equal(firstPayload.values[2], "Product A");
+  const firstHash = cells[1][8];
+
+  cells[0][2] = "Which service do you need?";
+  cells[1][2] = "Service B";
+  fixture.scan();
+  assert.equal(fixture.requests.length, 2);
+  const updatedPayload = JSON.parse(fixture.requests[1].options.payload);
+  assert.equal(updatedPayload.headers[2], "Which service do you need?");
+  assert.equal(updatedPayload.values[2], "Service B");
+  assert.equal(cells[1][3], "Sales One");
+  assert.equal(cells[1][6], "Done");
+  assert.notEqual(cells[1][8], firstHash, "source hash changes when Meta questions change");
+  fixture.scan();
+  assert.equal(fixture.requests.length, 2, "unchanged assigned row stays quiet");
+});
+
+test("Done sharing status waits for a saved assignment while notification retries", () => {
+  const source = generateScript();
+  const cells = [["Full Name", "Phone"], ["Ada", "9876543210"]];
+  const fixture = runSetup(source, [sheetFixture(42, "Meta Leads", cells)], [], call => call === 1
+    ? { status: "pending", sharingStatus: "Not Done", notificationStatus: "Pending" }
+    : { status: "assigned", leadId: "SHEET1234567890ABCDEF", assignedEmployeeId: "EMP1", assignedEmployeeName: "Sales One", sharingStatus: "Done", notificationStatus: call === 2 ? "Failed" : "Accepted" });
+  fixture.run();
+  assert.equal(cells[1][5], "Not Done");
+  assert.equal(cells[1][2] || "", "");
+  fixture.scan();
+  assert.equal(cells[1][5], "Done");
+  assert.equal(cells[1][6], "Failed");
+  assert.equal(cells[1][2], "Sales One");
+  fixture.scan();
+  assert.equal(cells[1][6], "Accepted");
+  fixture.scan();
+  assert.equal(fixture.requests.length, 3, "Accepted notification and unchanged source stop retries");
 });

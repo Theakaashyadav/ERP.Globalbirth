@@ -1,4 +1,4 @@
-const ASSIGNMENT_HEADERS = ["Assigned Employee", "Assigned Employee ID", "GlobalOne Lead ID"];
+const CONTROL_HEADERS = ["Assigned Employee", "Assigned Employee ID", "GlobalOne Lead ID", "GlobalOne Sharing Status", "GlobalOne Notification Status", "GlobalOne Synced Hash"];
 
 function sheetIdentity(sheetUrl) {
   const url = new URL(sheetUrl);
@@ -24,7 +24,7 @@ const GLOBALONE_SPREADSHEET_ID = ${JSON.stringify(spreadsheetId)};
 const GLOBALONE_SHEET_TAB_ID = ${JSON.stringify(sheetTabId)};
 const GLOBALONE_WEBHOOK_URL = ${JSON.stringify(url.href)};
 const GLOBALONE_WEBHOOK_SECRET = ${JSON.stringify(webhookSecret)};
-const GLOBALONE_ASSIGNMENT_HEADERS = ${JSON.stringify(ASSIGNMENT_HEADERS)};
+const GLOBALONE_CONTROL_HEADERS = ${JSON.stringify(CONTROL_HEADERS)};
 const GLOBALONE_HANDLER = "sendNewLeadsToGlobalOne";
 const GLOBALONE_PHONE_HEADERS = ["Phone Number", "Phone", "Phone No", "Mobile Number", "Mobile", "Mobile No", "Contact Number", "Contact", "Contact No", "WhatsApp Number", "WhatsApp", "WhatsApp No"];
 const GLOBALONE_NAME_HEADERS = ["Full Name", "Lead Name", "Name", "Customer Name", "First Name"];
@@ -58,8 +58,11 @@ function globalOneHeaderIndex_(headers, name) {
 }
 
 function globalOneHasPhoneHeader_(headers) {
-  return GLOBALONE_PHONE_HEADERS.some(function(name) {
-    return globalOneHeaderIndex_(headers, name) >= 0;
+  return headers.some(function(header) {
+    const normalized = String(header).toLowerCase().replace(/[^a-z0-9]/g, "");
+    return GLOBALONE_PHONE_HEADERS.some(function(name) {
+      return normalized === name.toLowerCase().replace(/[^a-z0-9]/g, "");
+    }) || /phone|mobile|whatsapp|contactnumber/.test(normalized);
   });
 }
 
@@ -136,13 +139,13 @@ function globalOneSheet_(fresh) {
 function globalOneHeaders_(sheet, headerRow) {
   const width = Math.max(sheet.getLastColumn(), 1);
   const headers = sheet.getRange(headerRow, 1, 1, width).getDisplayValues()[0];
-  GLOBALONE_ASSIGNMENT_HEADERS.forEach(function(name) {
+  GLOBALONE_CONTROL_HEADERS.forEach(function(name) {
     if (globalOneHeaderIndex_(headers, name) < 0) headers.push(name);
   });
   if (sheet.getMaxColumns() < headers.length) {
     sheet.insertColumnsAfter(sheet.getMaxColumns(), headers.length - sheet.getMaxColumns());
   }
-  GLOBALONE_ASSIGNMENT_HEADERS.forEach(function(name) {
+  GLOBALONE_CONTROL_HEADERS.forEach(function(name) {
     const index = globalOneHeaderIndex_(headers, name);
     if (sheet.getRange(headerRow, index + 1).getDisplayValue() !== name) {
       sheet.getRange(headerRow, index + 1).setValue(name);
@@ -152,19 +155,33 @@ function globalOneHeaders_(sheet, headerRow) {
   return headers;
 }
 
+function globalOneSourceHash_(headers, values, controlIndexes) {
+  const source = headers.map(function(header, index) {
+    return controlIndexes.indexOf(index) < 0 ? [String(header), String(values[index] || "")] : null;
+  }).filter(function(item) { return item !== null; });
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, JSON.stringify(source), Utilities.Charset.UTF_8)
+    .map(function(byte) { return ("0" + (byte & 255).toString(16)).slice(-2); }).join("");
+}
+
 function globalOneSendRow_(sheet, headers, allRows, rowNumber, headerRow) {
   const values = allRows[rowNumber - headerRow - 1];
   if (!values) return false;
-  const assignmentIndexes = GLOBALONE_ASSIGNMENT_HEADERS.map(function(name) {
+  const assignmentIndexes = GLOBALONE_CONTROL_HEADERS.map(function(name) {
     return globalOneHeaderIndex_(headers, name);
   });
   const sourceIndexes = headers.map(function(_, index) { return index; }).filter(function(index) {
     return assignmentIndexes.indexOf(index) < 0;
   });
   if (!sourceIndexes.some(function(index) { return String(values[index] || "").trim(); })) return false;
-  if (assignmentIndexes.every(function(index) { return String(values[index] || "").trim(); })) return false;
+  const sourceHash = globalOneSourceHash_(headers, values, assignmentIndexes);
+  if (assignmentIndexes.slice(0, 3).every(function(index) { return String(values[index] || "").trim(); }) &&
+      values[assignmentIndexes[3]] === "Done" && values[assignmentIndexes[4]] === "Accepted" &&
+      values[assignmentIndexes[5]] === sourceHash) return false;
   // Keep any owner already entered outside GlobalOne untouched.
-  if (!values[assignmentIndexes[2]] && (values[assignmentIndexes[0]] || values[assignmentIndexes[1]])) return false;
+  if (!values[assignmentIndexes[2]] && (values[assignmentIndexes[0]] || values[assignmentIndexes[1]])) {
+    if (!values[assignmentIndexes[3]]) sheet.getRange(rowNumber, assignmentIndexes[3] + 1).setValue("Not Done");
+    return false;
+  }
   // A stable ID prevents row inserts and sorts from changing which lead this row represents.
   if (!values[assignmentIndexes[2]]) {
     const beforeWrite = sheet.getRange(rowNumber, 1, 1, headers.length).getDisplayValues()[0];
@@ -172,6 +189,10 @@ function globalOneSendRow_(sheet, headers, allRows, rowNumber, headerRow) {
         sourceIndexes.some(function(index) { return beforeWrite[index] !== values[index]; })) return false;
     values[assignmentIndexes[2]] = "SHEET" + Utilities.getUuid().replace(/-/g, "").slice(0, 16).toUpperCase();
     sheet.getRange(rowNumber, assignmentIndexes[2] + 1).setValue(values[assignmentIndexes[2]]);
+    values[assignmentIndexes[3]] = "Not Done";
+    values[assignmentIndexes[4]] = "Pending";
+    sheet.getRange(rowNumber, assignmentIndexes[3] + 1).setValue(values[assignmentIndexes[3]]);
+    sheet.getRange(rowNumber, assignmentIndexes[4] + 1).setValue(values[assignmentIndexes[4]]);
   }
 
   let response;
@@ -206,16 +227,23 @@ function globalOneSendRow_(sheet, headers, allRows, rowNumber, headerRow) {
     throw failure;
   }
   const data = body.data || {};
-  if (data.status === "pending" || data.status === "external") return true;
-  if (!data.assignedEmployeeName || !data.assignedEmployeeId || !data.leadId) {
-    throw new Error("GlobalOne did not return assignment details for row " + rowNumber + ".");
-  }
-
   // If a row was edited or sorted while the API call ran, retry it on the next scan.
   const currentValues = sheet.getRange(rowNumber, 1, 1, headers.length).getDisplayValues()[0];
   if (currentValues[assignmentIndexes[2]] !== values[assignmentIndexes[2]] ||
       sourceIndexes.some(function(index) { return currentValues[index] !== values[index]; })) return true;
-  [data.assignedEmployeeName, data.assignedEmployeeId, data.leadId].forEach(function(value, index) {
+  if (data.status === "external") {
+    if (!currentValues[assignmentIndexes[3]]) sheet.getRange(rowNumber, assignmentIndexes[3] + 1).setValue("Not Done");
+    return true;
+  }
+  if (data.status === "pending") {
+    sheet.getRange(rowNumber, assignmentIndexes[3] + 1).setValue("Not Done");
+    sheet.getRange(rowNumber, assignmentIndexes[4] + 1).setValue(data.notificationStatus || "Pending");
+    return true;
+  }
+  if (!data.assignedEmployeeName || !data.assignedEmployeeId || !data.leadId || data.sharingStatus !== "Done") {
+    throw new Error("GlobalOne did not confirm a saved assignment for row " + rowNumber + ".");
+  }
+  [data.assignedEmployeeName, data.assignedEmployeeId, data.leadId, "Done", data.notificationStatus || "Pending", sourceHash].forEach(function(value, index) {
     sheet.getRange(rowNumber, assignmentIndexes[index] + 1).setValue(value);
   });
   return true;
