@@ -140,6 +140,54 @@ function sourceKey(settings, rowNumber, fields) {
   return `${settings.spreadsheetId}:${settings.sheetTabId}:row:${rowNumber}`;
 }
 
+function sourceFields(fields) {
+  return Object.entries(fields).filter(([label]) => ![ASSIGNEE_HEADER, ASSIGNEE_ID_HEADER, LEAD_ID_HEADER]
+    .some(control => normalizeHeader(label) === normalizeHeader(control)));
+}
+
+function sameSourceFields(lead, fields) {
+  const previous = lead.sheetFields instanceof Map ? Object.fromEntries(lead.sheetFields) : (lead.sheetFields || {});
+  const current = sourceFields(fields);
+  return current.some(([, value]) => clean(value)) && current.every(([label, value]) =>
+    Object.hasOwn(previous, label) && clean(previous[label]) === clean(value));
+}
+
+function changedRowKey(key, fields) {
+  const fingerprint = crypto.createHash("sha256").update(JSON.stringify(sourceFields(fields))).digest("hex").slice(0, 24);
+  return `${key}:content:${fingerprint}`;
+}
+
+async function findSheetLead(settings, rowNumber, fields) {
+  const key = sourceKey(settings, rowNumber, fields);
+  const globalId = clean(Object.entries(fields).find(([label]) => normalizeHeader(label) === normalizeHeader(LEAD_ID_HEADER))?.[1]);
+  // A row number can point to a different person after a Sheet sort. The written-back
+  // GlobalOne ID identifies the owner, even when the row has moved.
+  if (globalId) {
+    if (!/^SHEET[A-F0-9]{16}$/.test(globalId)) return { lead: null, key, globalId, conflict: true };
+    const byId = await Lead.findOne({ leadId: globalId }).lean();
+    if (byId) {
+      const incoming = leadData(fields);
+      return { lead: byId, key, globalId, conflict:
+        byId.sheetSpreadsheetId !== settings.spreadsheetId ||
+        (byId.sheetTabId != null && byId.sheetTabId !== settings.sheetTabId) ||
+        Boolean(incoming.phone && byId.phone && incoming.phone !== byId.phone && incoming.name !== byId.name) ||
+        (byId.sheetRowNumber !== rowNumber && !sameSourceFields(byId, fields)) };
+    }
+    return { lead: null, key, globalId, conflict: false };
+  }
+  const byKey = await Lead.findOne({ sheetSourceKey: key }).lean();
+  const assignedId = clean(Object.entries(fields).find(([label]) => normalizeHeader(label) === normalizeHeader(ASSIGNEE_ID_HEADER))?.[1]);
+  if (byKey && assignedId && assignedId !== byKey.assignedEmployeeId) {
+    return { lead: null, key, globalId, conflict: true };
+  }
+  if (byKey && key.endsWith(`:row:${rowNumber}`) && !sameSourceFields(byKey, fields)) {
+    const alternateKey = changedRowKey(key, fields);
+    const alternate = await Lead.findOne({ sheetSourceKey: alternateKey }).lean();
+    return { lead: alternate, key: alternateKey, globalId, conflict: false };
+  }
+  return { lead: byKey, key, globalId, conflict: false };
+}
+
 async function activeSelectedEmployees(employeeIds) {
   if (!employeeIds?.length) return [];
   const employees = await Employee.find({ employeeId: { $in: employeeIds }, status: "Active", department: "Sales", designation: { $in: ["TL", "Executive"] } }).lean();
@@ -148,14 +196,18 @@ async function activeSelectedEmployees(employeeIds) {
 }
 
 async function publicSettings(settings, extras = {}) {
-  const account = serviceAccount();
+  let account = null;
+  try { account = serviceAccount(); } catch { /* Apps Script connections do not need Google service-account credentials. */ }
   const employees = await Employee.find({ department: "Sales", designation: { $in: ["TL", "Executive"] }, status: "Active" })
     .select({ employeeId: 1, fullName: 1, department: 1, designation: 1, status: 1, _id: 0 }).sort({ fullName: 1 }).lean();
   return {
     sheetUrl: settings?.sheetUrl || "",
     employeeIds: settings?.employeeIds || [],
+    webhookSecret: settings?.webhookSecret || "",
     serviceAccountEmail: account?.client_email || "",
-    status: !settings?.spreadsheetId ? "not_configured" : settings.lastError ? "error" : settings.lastSyncAt ? "connected" : "waiting_for_first_sync",
+    status: !settings?.spreadsheetId ? "not_configured" : settings.lastError ? "error" : settings.lastWebhookAt ? "connected" : "waiting_for_first_webhook",
+    lastWebhookAt: settings?.lastWebhookAt?.toISOString?.() || "",
+    lastWebhookStatus: settings?.lastWebhookStatus || "",
     lastSyncAt: settings?.lastSyncAt?.toISOString?.() || "",
     lastError: settings?.lastError || "",
     lastImportedCount: settings?.lastImportedCount || 0,
@@ -182,11 +234,12 @@ async function updateLeadSheetSettings(payload) {
   const previous = await LeadSheetSettings.findOne({ key: SETTINGS_KEY }).lean();
   const changedSheet = previous?.spreadsheetId !== parsed.spreadsheetId || previous?.sheetTabId !== parsed.sheetTabId;
   const changedEmployees = JSON.stringify(previous?.employeeIds || []) !== JSON.stringify(requestedIds);
+  const webhookSecret = changedSheet || !previous?.webhookSecret ? crypto.randomBytes(32).toString("hex") : previous.webhookSecret;
   if (changedSheet || changedEmployees) rowCache.clear();
   const settings = await LeadSheetSettings.findOneAndUpdate(
     { key: SETTINGS_KEY },
-    { $set: { ...parsed, employeeIds: requestedIds,
-      ...(changedSheet ? { nextEmployeeIndex: 0, lastSyncAt: null, lastError: "", lastImportedCount: 0, lastPendingCount: 0 } : {}) },
+    { $set: { ...parsed, employeeIds: requestedIds, webhookSecret,
+      ...(changedSheet ? { nextEmployeeIndex: 0, lastSyncAt: null, lastWebhookAt: null, lastWebhookStatus: "", lastError: "", lastImportedCount: 0, lastPendingCount: 0 } : {}) },
       $setOnInsert: { key: SETTINGS_KEY } },
     { upsert: true, new: true }
   ).lean();
@@ -231,6 +284,131 @@ async function ensureAssignmentHeaders(settings, tabName, rawHeaders) {
   }
   if (added.length) await writeCells(settings, tabName, 1, added);
   return headers;
+}
+
+function validWebhookSecret(received, expected) {
+  const supplied = Buffer.from(clean(received));
+  const stored = Buffer.from(clean(expected));
+  return supplied.length === 64 && stored.length === 64 && crypto.timingSafeEqual(supplied, stored);
+}
+
+async function receiveLeadSheetWebhook(payload = {}) {
+  await connectDatabase();
+  const settings = await LeadSheetSettings.findOne({ key: SETTINGS_KEY }).lean();
+  if (!settings?.spreadsheetId || !validWebhookSecret(payload.secret, settings.webhookSecret)) {
+    return { success: false, statusCode: 401, message: "Invalid Lead Sheet connection." };
+  }
+  let result;
+  try {
+    result = await processLeadSheetWebhook(payload, settings);
+  } catch (error) {
+    await LeadSheetSettings.updateOne({ key: SETTINGS_KEY }, { $set: {
+      lastWebhookAt: new Date(), lastWebhookStatus: "error", lastError: clean(error.message).slice(0, 300)
+    } });
+    throw error;
+  }
+  await LeadSheetSettings.updateOne({ key: SETTINGS_KEY }, { $set: {
+    lastWebhookAt: new Date(), lastWebhookStatus: result.success ? result.data.status : "error",
+    lastError: result.success ? "" : result.message,
+    lastImportedCount: result.data?.status === "assigned" ? 1 : 0,
+    lastPendingCount: result.data?.status === "pending" ? 1 : 0
+  } });
+  return result;
+}
+
+async function processLeadSheetWebhook(payload, settings) {
+  const spreadsheetId = clean(payload.spreadsheetId);
+  const sheetTabId = Number(payload.sheetTabId);
+  const rowNumber = Number(payload.rowNumber);
+  if (spreadsheetId !== settings.spreadsheetId ||
+      !Number.isSafeInteger(sheetTabId) || sheetTabId < 0 ||
+      (settings.sheetTabId != null && sheetTabId !== settings.sheetTabId)) {
+    return { success: false, statusCode: 403, message: "This Sheet tab is not selected in the dashboard." };
+  }
+  if (!Number.isSafeInteger(rowNumber) || rowNumber < 2 ||
+      !Array.isArray(payload.headers) || !Array.isArray(payload.values) ||
+      payload.headers.length < 1 || payload.headers.length > 300 || payload.values.length > 300) {
+    return { success: false, statusCode: 400, message: "Send a Sheet row with its header names and row number." };
+  }
+  const width = Math.max(payload.headers.length, payload.values.length);
+  const headers = uniqueHeaders(Array.from({ length: width }, (_, index) => payload.headers[index]));
+  const values = Array.from({ length: width }, (_, index) => clean(payload.values[index]));
+  const fields = fieldsForRow(headers, values);
+  const assignedIndex = headerIndex(headers, ASSIGNEE_HEADER);
+  const assignedIdIndex = headerIndex(headers, ASSIGNEE_ID_HEADER);
+  const globalIdIndex = headerIndex(headers, LEAD_ID_HEADER);
+  const hasLeadData = values.some((value, index) => value && ![assignedIndex, assignedIdIndex, globalIdIndex].includes(index));
+  if (!hasLeadData) return { success: true, data: { status: "pending", leadId: "", assignedEmployeeId: "", assignedEmployeeName: "", sheetRowNumber: rowNumber } };
+
+  const lookup = await findSheetLead({ ...settings, sheetTabId }, rowNumber, fields);
+  if (lookup.conflict) return { success: false, statusCode: 409, message: "This Sheet row has a GlobalOne ID or assigned employee that does not match its saved lead. Check the row before retrying." };
+  const { key, globalId } = lookup;
+  let lead = lookup.lead;
+  if (!lead && assignedIndex >= 0 && clean(values[assignedIndex])) {
+    return { success: true, data: { status: "external", leadId: globalId, assignedEmployeeId: assignedIdIndex < 0 ? "" : clean(values[assignedIdIndex]), assignedEmployeeName: clean(values[assignedIndex]), sheetRowNumber: rowNumber } };
+  }
+
+  let status = "existing";
+  if (!lead) {
+    const person = leadData(fields);
+    if (!/^[0-9]{10}$/.test(person.phone)) {
+      return { success: true, data: { status: "pending", leadId: "", assignedEmployeeId: "", assignedEmployeeName: "", sheetRowNumber: rowNumber } };
+    }
+    const employees = await activeSelectedEmployees(settings.employeeIds);
+    if (!employees.length) return { success: false, statusCode: 409, message: "Select at least one active Sales employee in the dashboard." };
+    const rotation = await LeadSheetSettings.findOneAndUpdate({ key: SETTINGS_KEY }, { $inc: { nextEmployeeIndex: 1 } }, { new: false }).lean();
+    const employee = employees[(rotation?.nextEmployeeIndex || 0) % employees.length];
+    try {
+      const created = await Lead.create({
+        leadId: globalId || `SHEET${crypto.randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`,
+        ...person,
+        source: "Google Sheet",
+        sheetFields: fields,
+        sheetFieldOrder: headers,
+        sheetSourceKey: key,
+        sheetSpreadsheetId: spreadsheetId,
+        sheetTabId,
+        sheetRowNumber: rowNumber,
+        assignedEmployeeId: employee.employeeId,
+        marketingAssignedTlId: employee.designation === "TL" ? employee.employeeId : employee.teamLeadId || "",
+        assignmentStage: employee.designation,
+        assignedAt: new Date(),
+        firstCallDeadline: null,
+        returnedToMarketingAt: null,
+        status: "New"
+      });
+      lead = created.toObject();
+      status = "assigned";
+      await sendLeadAssignment(employee, lead, "Google Sheet").catch(error => console.error("Lead assignment push failed:", error));
+    } catch (error) {
+      if (error.code !== 11000) throw error;
+      const raced = await findSheetLead({ ...settings, sheetTabId }, rowNumber, fields);
+      lead = raced.conflict ? null : raced.lead;
+      if (!lead) throw error;
+    }
+  }
+
+  const assignee = await Employee.findOne({ employeeId: lead.assignedEmployeeId })
+    .select({ fullName: 1, employeeId: 1 }).lean();
+  if (!assignee) return { success: false, statusCode: 409, message: "The assigned employee no longer exists. Restore that employee before retrying." };
+  const finalFields = { ...fields,
+    [ASSIGNEE_HEADER]: assignee.fullName,
+    [ASSIGNEE_ID_HEADER]: assignee.employeeId,
+    [LEAD_ID_HEADER]: lead.leadId };
+  const person = leadData(finalFields);
+  const existingFields = lead.sheetFields instanceof Map ? Object.fromEntries(lead.sheetFields) : (lead.sheetFields || {});
+  if (JSON.stringify(existingFields) !== JSON.stringify(finalFields) ||
+      JSON.stringify(lead.sheetFieldOrder || []) !== JSON.stringify(Object.keys(finalFields)) ||
+      lead.sheetRowNumber !== rowNumber) {
+    await Lead.updateOne({ _id: lead._id }, { $set: {
+      sheetFields: finalFields, sheetFieldOrder: Object.keys(finalFields), sheetRowNumber: rowNumber,
+      name: person.name, ...(person.phone ? { phone: person.phone } : {}), city: person.city
+    } });
+  }
+  return { success: true, data: {
+    status, leadId: lead.leadId, assignedEmployeeId: assignee.employeeId,
+    assignedEmployeeName: assignee.fullName, sheetRowNumber: rowNumber
+  } };
 }
 
 function rowFingerprint(headers, row) {
@@ -301,9 +479,10 @@ async function runSync(force = false) {
         continue;
       }
       const fields = fieldsForRow(headers, row);
-      const key = sourceKey(sourceSettings, rowNumber, fields);
-      let lead = await Lead.findOne({ sheetSourceKey: key }).lean();
-      if (!lead && clean(row[globalIdIndex])) lead = await Lead.findOne({ leadId: clean(row[globalIdIndex]), sheetSpreadsheetId: settings.spreadsheetId }).lean();
+      const lookup = await findSheetLead(sourceSettings, rowNumber, fields);
+      if (lookup.conflict) { pendingCount += 1; markHandled(cacheKey, row, "pending"); continue; }
+      const { key, globalId } = lookup;
+      let lead = lookup.lead;
       if (!lead && clean(row[assignedIndex])) { skippedCount += 1; markHandled(cacheKey, row, "skipped"); continue; }
       if (!lead) {
         const person = leadData(fields);
@@ -312,7 +491,7 @@ async function runSync(force = false) {
         const employee = employees[(rotation?.nextEmployeeIndex || 0) % employees.length];
         try {
           lead = await Lead.create({
-            leadId: `SHEET${crypto.randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`,
+            leadId: globalId || `SHEET${crypto.randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`,
             ...person,
             source: "Google Sheet",
             sheetFields: fields,
@@ -377,4 +556,4 @@ async function syncLeadSheet(payload = {}) {
   return syncPromise;
 }
 
-module.exports = { getLeadSheetSettings, updateLeadSheetSettings, syncLeadSheet };
+module.exports = { getLeadSheetSettings, updateLeadSheetSettings, syncLeadSheet, receiveLeadSheetWebhook };

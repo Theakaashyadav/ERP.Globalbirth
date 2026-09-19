@@ -5,6 +5,7 @@ const attendanceRoutes = require("./routes/attendance.routes");
 const { healthCheck } = require("./controllers/health.controller");
 const { requireClientApiKey } = require("./middleware/api-key");
 const { getClientConfig } = require("./config");
+const { receiveLeadSheetWebhook } = require("./services/lead-sheet.service");
 
 function createApp(options = {}) {
   const app = express();
@@ -18,6 +19,15 @@ function createApp(options = {}) {
   });
 
   app.get("/api/health", requireClientApiKey, healthCheck);
+  app.post("/api/lead-sheet/webhook", async (req, res) => {
+    try {
+      const result = await receiveLeadSheetWebhook(req.body);
+      res.status(result.statusCode || 200).json({ success: result.success, ...(result.data ? { data: result.data } : {}), ...(result.message ? { message: result.message } : {}) });
+    } catch (error) {
+      console.error("Lead Sheet webhook failed:", error);
+      res.status(500).json({ success: false, message: "Lead Sheet webhook failed. Retry this row." });
+    }
+  });
   app.use("/api/attendance", requireClientApiKey, attendanceRoutes);
   app.use("/api/app-update", requireClientApiKey, require("./routes/app-update.routes"));
 

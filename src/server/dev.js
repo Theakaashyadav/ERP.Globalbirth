@@ -3,7 +3,6 @@ require("dotenv").config();
 const fs = require("fs");
 const path = require("path");
 const { createApp } = require("./app");
-const { syncLeadSheet } = require("./services/lead-sheet.service");
 
 async function startDevServer() {
   const { createServer } = await import("vite");
@@ -34,9 +33,7 @@ async function startDevServer() {
 
   app.listen(port, () => {
     console.log("Attendance dev server running on http://localhost:" + port);
-    syncLeadSheet().catch(error => console.error("Lead Sheet sync failed:", error.message));
   });
-  setInterval(() => syncLeadSheet().catch(error => console.error("Lead Sheet sync failed:", error.message)), 10 * 1000).unref();
 }
 
 startDevServer().catch(error => {

@@ -108,6 +108,22 @@ test("Sheet sync assigns each valid row once, preserves every column, and writes
     assert.equal(leads.length, 4);
     assert.equal(leadFindCount, readsAfterFirst, "unchanged rows should not query MongoDB");
     assert.equal(leadUpdateCount, updatesAfterFirst, "unchanged rows should not update MongoDB");
+    const originalOwner = leads[0].assignedEmployeeId;
+    rows.splice(1, 0, ["Inserted Lead", "9876543214", "1234567890123456800", "September Campaign", ""]);
+    const inserted = await syncLeadSheet({ _dashboardSession: true });
+    assert.equal(inserted.success, true, inserted.message);
+    assert.equal(inserted.data.importedCount, 1, "a row inserted above an existing lead must be imported separately");
+    assert.equal(leads.length, 5);
+    assert.equal(leads[0].assignedEmployeeId, originalOwner);
+    assert.equal(leads[0].name, "Customer One", "the inserted row must not overwrite the old row-number occupant");
+    const insertedId = rows[1][7];
+    assert.ok(insertedId);
+    [rows[2], rows[3]] = [rows[3], rows[2]];
+    const sorted = await syncLeadSheet({ _dashboardSession: true });
+    assert.equal(sorted.success, true, sorted.message);
+    assert.equal(sorted.data.importedCount, 0, "sorting rows with GlobalOne IDs must not create new leads");
+    assert.equal(leads[0].assignedEmployeeId, originalOwner);
+    assert.equal(rows[1][7], insertedId);
   } finally {
     Module._load = originalLoad;
     global.fetch = originalFetch;
