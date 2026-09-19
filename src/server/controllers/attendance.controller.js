@@ -8,7 +8,6 @@ const announcements = require("../services/announcement.service");
 const appFeedback = require("../services/app-feedback.service");
 const salarySlips = require("../services/salary-slip.service");
 const leadSheet = require("../services/lead-sheet.service");
-const leadCleanup = require("../services/lead-cleanup.service");
 const Employee = require("../models/Employee");
 const { connectDatabase } = require("../db/connection");
 const { readDashboardSession, readEmployeeSession, canAccessDashboardRole } = require("../security/dashboard-session");
@@ -40,7 +39,6 @@ const handlers = {
   archiveEmployeeLead: attendance.archiveEmployeeLead,
   getMarketingLeadDashboard: attendance.getMarketingLeadDashboard,
   clearAllLeads: attendance.clearAllLeads,
-  retainSurenAndAssignGovind: leadCleanup.retainSurenAndAssignGovind,
   getLeadSheetSettings: leadSheet.getLeadSheetSettings,
   updateLeadSheetSettings: leadSheet.updateLeadSheetSettings,
   syncLeadSheet: leadSheet.syncLeadSheet,
@@ -84,7 +82,7 @@ async function handleAttendanceAction(req, res) {
     updateEmployee: ["hr"], deleteEmployee: ["hr"],
     assignLead: ["marketing"], reassignReturnedLead: ["marketing"], getMarketingLeadDashboard: ["marketing"],
     requestCallLogStats: ["admin", "marketing"], getCallLogStatsRequest: ["admin", "marketing"],
-    getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], resetDatabaseCollection: ["admin"], clearAllLeads: ["admin"], retainSurenAndAssignGovind: ["admin"], sendTestPush: ["admin"],
+    getMobileFeatureSettings: ["admin"], updateMobileFeatureSettings: ["admin"], getDatabaseAnalysis: ["admin"], resetDatabaseCollection: ["admin"], clearAllLeads: ["admin"], sendTestPush: ["admin"],
     getLeadSheetSettings: ["admin"], updateLeadSheetSettings: ["admin"], syncLeadSheet: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
     getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAttendanceWifiExemptions: ["admin"], updateAttendanceWifiExemptions: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],

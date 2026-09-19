@@ -318,25 +318,63 @@ function validWebhookSecret(received, expected) {
   return supplied.length === 64 && stored.length === 64 && crypto.timingSafeEqual(supplied, stored);
 }
 
-async function notifyAssignedLead(lead, employee) {
+async function notifyAssignedLead(lead, employee, { forceFailed = false } = {}) {
   if (lead.notificationStatus === "Accepted") return lead;
   const lastAttempt = lead.notificationAttemptedAt ? new Date(lead.notificationAttemptedAt).getTime() : 0;
-  if (lastAttempt && Date.now() - lastAttempt < NOTIFICATION_RETRY_MS) return lead;
+  if (lastAttempt && Date.now() - lastAttempt < NOTIFICATION_RETRY_MS && !(forceFailed && lead.notificationStatus === "Failed")) return lead;
   if (notificationInFlight.has(lead.leadId)) return notificationInFlight.get(lead.leadId);
   const attempt = (async () => {
     const attemptedAt = new Date();
-    await Lead.updateOne({ _id: lead._id }, { $set: { notificationStatus: "Pending", notificationAttemptedAt: attemptedAt } });
+    const retryBefore = new Date(attemptedAt.getTime() - NOTIFICATION_RETRY_MS);
+    // Claim the retry in MongoDB so two server instances cannot send the same
+    // assignment at once. A newly registered token may retry a recent failure.
+    const claimed = await Lead.findOneAndUpdate({
+      _id: lead._id,
+      assignedEmployeeId: employee.employeeId,
+      notificationStatus: { $in: ["Pending", "Failed"] },
+      $or: [
+        { notificationAttemptedAt: { $lte: retryBefore } },
+        { notificationAttemptedAt: null },
+        { notificationAttemptedAt: { $exists: false } },
+        ...(forceFailed ? [{ notificationStatus: "Failed" }] : [])
+      ]
+    }, { $set: {
+      notificationStatus: "Pending", notificationAttemptedAt: attemptedAt,
+      "sheetFields.GlobalOne Notification Status": "Pending"
+    } }, { new: true }).lean();
+    if (!claimed) return (await Lead.findOne({ _id: lead._id }).lean()) || lead;
     let accepted = false;
-    try { accepted = await sendLeadAssignment(employee, lead, "Google Sheet"); }
+    try { accepted = await sendLeadAssignment(employee, claimed, "Google Sheet"); }
     catch (error) { console.error("Lead assignment push failed:", error); }
     const notificationStatus = accepted ? "Accepted" : "Failed";
     const notificationAcceptedAt = accepted ? new Date() : null;
-    await Lead.updateOne({ _id: lead._id }, { $set: { notificationStatus, notificationAttemptedAt: attemptedAt, notificationAcceptedAt } });
-    return { ...lead, notificationStatus, notificationAttemptedAt: attemptedAt, notificationAcceptedAt };
+    const saved = await Lead.findOneAndUpdate({
+      _id: lead._id, assignedEmployeeId: employee.employeeId, notificationAttemptedAt: attemptedAt
+    }, { $set: {
+      notificationStatus, notificationAttemptedAt: attemptedAt, notificationAcceptedAt,
+      "sheetFields.GlobalOne Notification Status": notificationStatus
+    } }, { new: true }).lean();
+    return saved || claimed;
   })();
   notificationInFlight.set(lead.leadId, attempt);
   try { return await attempt; }
   finally { notificationInFlight.delete(lead.leadId); }
+}
+
+async function retryAssignedSheetLeadNotifications(employee, { forceFailed = false } = {}) {
+  if (!employee?.employeeId || !employee.pushToken) return;
+  const leads = await Lead.find({
+    assignedEmployeeId: employee.employeeId,
+    archivedAt: null,
+    notificationStatus: { $in: ["Pending", "Failed"] },
+    $or: [
+      { sheetSourceKey: { $exists: true, $ne: "" } },
+      { sheetSpreadsheetId: { $exists: true, $ne: "" } },
+      { source: "Google Sheet" }
+    ]
+  }).select({ _id: 1, leadId: 1, phone: 1, assignedEmployeeId: 1, notificationStatus: 1,
+    notificationAttemptedAt: 1, sheetFields: 1, source: 1 }).sort({ assignedAt: 1 }).limit(50).lean();
+  for (const lead of leads) await notifyAssignedLead(lead, employee, { forceFailed });
 }
 
 async function receiveLeadSheetWebhook(payload = {}) {
@@ -618,4 +656,4 @@ async function syncLeadSheet(payload = {}) {
   return syncPromise;
 }
 
-module.exports = { getLeadSheetSettings, updateLeadSheetSettings, syncLeadSheet, receiveLeadSheetWebhook };
+module.exports = { getLeadSheetSettings, updateLeadSheetSettings, syncLeadSheet, receiveLeadSheetWebhook, retryAssignedSheetLeadNotifications };

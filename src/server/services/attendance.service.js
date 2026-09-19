@@ -434,8 +434,18 @@ async function registerPushToken(payload) {
   const employee = await Employee.findOneAndUpdate(
     { employeeId, registeredAndroidId: androidId, status: "Active" },
     { $set: { pushToken } },
-    { new: true }
+    { new: false }
   ).lean();
+  if (employee) {
+    try {
+      // A missing or rotated token may have caused a recent failed push. The
+      // token is saved first; notification recovery cannot break registration.
+      const { retryAssignedSheetLeadNotifications } = require("./lead-sheet.service");
+      await retryAssignedSheetLeadNotifications({ ...employee, pushToken }, { forceFailed: employee.pushToken !== pushToken });
+    } catch (error) {
+      console.error(`Lead notification recovery failed for ${employeeId}:`, error);
+    }
+  }
   return { success: Boolean(employee), message: employee ? "Push notifications enabled." : "Device verification failed." };
 }
 

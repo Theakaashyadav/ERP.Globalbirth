@@ -90,6 +90,23 @@ test("Apps Script webhook authenticates the configured Sheet and assigns each ro
     },
     "../models/Lead": {
       findOne: criteria => query(leads.find(lead => Object.entries(criteria).every(([key, value]) => lead[key] === value)) || null),
+      findOneAndUpdate: (criteria, update) => {
+        const lead = leads.find(item => item._id === criteria._id && item.assignedEmployeeId === criteria.assignedEmployeeId);
+        if (!lead || (criteria.notificationStatus?.$in && !criteria.notificationStatus.$in.includes(lead.notificationStatus))) return query(null);
+        if (criteria.notificationAttemptedAt && new Date(lead.notificationAttemptedAt).getTime() !== criteria.notificationAttemptedAt.getTime()) return query(null);
+        if (criteria.$or && !criteria.$or.some(condition =>
+          (condition.notificationStatus && lead.notificationStatus === condition.notificationStatus) ||
+          (condition.notificationAttemptedAt === null && !lead.notificationAttemptedAt) ||
+          (condition.notificationAttemptedAt?.$exists === false && lead.notificationAttemptedAt === undefined) ||
+          (condition.notificationAttemptedAt?.$lte && lead.notificationAttemptedAt &&
+            new Date(lead.notificationAttemptedAt).getTime() <= condition.notificationAttemptedAt.$lte.getTime())
+        )) return query(null);
+        for (const [key, value] of Object.entries(update.$set)) {
+          if (key.startsWith("sheetFields.")) lead.sheetFields[key.slice("sheetFields.".length)] = value;
+          else lead[key] = value;
+        }
+        return query(lead);
+      },
       create: async values => {
         if (leads.some(lead => lead.sheetSourceKey === values.sheetSourceKey)) throw Object.assign(new Error("duplicate"), { code: 11000 });
         const lead = { ...structuredClone(values), _id: String(leads.length + 1) };
