@@ -40,27 +40,22 @@
 .salaryFormActions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
 .salaryPreviewLabel { margin: 22px 0 10px; text-align: center; color: #64748b; letter-spacing: .1em; font-size: 11px; font-weight: 800; }
 .salaryPrintPreview { overflow-x: auto; padding-bottom: 4px; }
-.salarySlipPage .salarySlip { width: 210mm; max-width: none; margin: 0 auto; padding: 12mm; color: #000; background: #fff; font: 10pt/1.35 Arial, sans-serif; box-shadow: 0 5px 25px #0f172a12; }
+.salarySlipPage .salarySlip { box-sizing: border-box; width: 210mm; max-width: none; margin: 0 auto; padding: 12mm; color: #000; background: #fff; font: 10pt/1.35 Arial, sans-serif; box-shadow: 0 5px 25px #0f172a12; }
 .salarySlip .salaryCompanyHeader { text-align: right; margin-bottom: 18px; overflow-wrap: anywhere; }
 .salarySlip .salaryCompanyHeader h2 { margin: 0 0 4px; font-size: 18px; color: #000; }
 .salarySlip .salaryCompanyHeader p { margin: 2px 0; white-space: pre-wrap; }
 .salaryPrintTitle { text-align: center; margin-bottom: 18px; }
 .salaryPrintTitle h1 { margin: 0 0 4px; font-size: 20px; color: #000; }
 .salaryPrintTitle p { margin: 0; }
-.salaryPrintTitle small { display: block; margin-top: 5px; font-size: 9px; }
-.salaryPrintDetails { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
-.salaryPrintDetails dl { margin: 0; min-width: 0; }
-.salaryPrintDetails dl > div { display: grid; grid-template-columns: 115px minmax(0, 1fr); gap: 6px; margin-bottom: 5px; break-inside: avoid; }
-.salaryPrintDetails dt { font-weight: bold; }
-.salaryPrintDetails dd { min-width: 0; margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
-.salaryPrintAttendance { display: flex; gap: 25px; padding: 8px 0; border-top: 1px solid #555; }
-.salarySlipPage .salarySlip .salaryPayTable { width: 100%; min-width: 0; table-layout: fixed; border-collapse: collapse; border: 1px solid #333; font-size: inherit; }
+.salarySlipPage .salarySlip .salaryPayTable { width: 100%; min-width: 0; max-width: 100%; margin: 0; table-layout: fixed; border-collapse: collapse; border: 1px solid #333; font-size: inherit; }
 .salarySlipPage .salarySlip .salaryPayTable th, .salarySlipPage .salarySlip .salaryPayTable td { padding: 5px 6px; border: 1px solid #555; color: #000; background: #fff; text-align: left; vertical-align: top; font-size: 9pt; white-space: normal; overflow-wrap: anywhere; }
 .salarySlipPage .salarySlip .salaryPayTable .salaryAmount { text-align: right; font-variant-numeric: tabular-nums; }
-.salarySlip .salaryPayTable thead th, .salarySlip .salaryPayTable .salaryNetPay th { background: #f1f5f9; }
+.salarySlipPage .salarySlip .salaryPayTable .salaryDetailValue { white-space: pre-wrap; }
+.salarySlipPage .salarySlip .salaryPayHeading th, .salarySlipPage .salarySlip .salaryNetPay > * { background: #f1f5f9; }
+.salaryPayHeading { break-after: avoid; page-break-after: avoid; }
 .salaryPayTable tr { break-inside: avoid; page-break-inside: avoid; }
 .salaryPrintSummary { break-inside: avoid; page-break-inside: avoid; }
-.salaryPrintNote { margin: 14px 0 0; font-size: 10px; font-style: italic; break-inside: avoid; }
+.salarySlipPage .salarySlip .salaryPayTable .salaryPrintNote { font-size: 8pt; font-style: italic; }
 .savedSalarySection { margin-top: 24px; padding: 22px; border: 1px solid #dbeafe; border-radius: 20px; background: #f8fafc; }
 .savedSalaryHeading p { margin: 5px 0 0; color: #64748b; font-size: 12px; }
 .savedSalaryGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 13px; }
@@ -87,8 +82,7 @@
   html:has(.salarySlipPage), body:has(.salarySlipPage) { margin: 0 !important; padding: 0 !important; background: #fff !important; min-height: 0 !important; }
   .noPrint, .toastWrap { display: none !important; }
   .salarySlipPage, .salarySlipPage > .wide, .salarySlipPage .salaryPrintPreview { display: block !important; width: 100% !important; max-width: none !important; min-width: 0 !important; min-height: 0 !important; margin: 0 !important; padding: 0 !important; overflow: visible !important; background: #fff !important; }
-  .salarySlipPage .salarySlip { page: salarySlipPage; display: block; width: 100%; max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; font: 10pt/1.35 Arial, sans-serif; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .salarySlipPage .salarySlip { page: salarySlipPage; display: block; width: 100%; max-width: 186mm; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; font: 10pt/1.35 Arial, sans-serif; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .salarySlipPage .salarySlip .salaryPayTable th, .salarySlipPage .salarySlip .salaryPayTable td { padding: 5px 6px; font-size: 9pt; }
-  .salaryPayTable thead { display: table-header-group; }
   .salaryCompanyHeader, .salaryPrintTitle, .salaryPrintAttendance { break-inside: avoid; page-break-inside: avoid; }
 }

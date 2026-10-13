@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { FileText, Plus, Printer, RotateCcw, Save, Search, X } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 import { AttendanceApi } from "../../api.js";
@@ -123,6 +123,8 @@ export default function SalarySlip() {
   const payRows = Array.from({ length: Math.max(visibleEarnings.length, visibleDeductions.length, 1) });
   const leftDetails = detailFields.filter(([key]) => ["empCode", "empName", "fhName", "designation", "department", "employeeAddress"].includes(key) && !removed.has(key));
   const rightDetails = detailFields.filter(([key]) => ["pfNo", "panNo", "bankNo", "esiNo", "doj", "uan"].includes(key) && !removed.has(key));
+  const detailRows = Array.from({ length: Math.max(leftDetails.length, rightDetails.length) }, (_, index) => [leftDetails[index], rightDetails[index]]);
+  const visibleAttendance = attendanceFields.filter(([key]) => !removed.has(key));
 
   return <main className="screen salarySlipPage"><div className="wide">
     <div className="noPrint">
@@ -171,15 +173,17 @@ export default function SalarySlip() {
 
     {editorOpen && <div className="salaryPrintPreview"><p className="noPrint salaryPreviewLabel">PRINT PREVIEW · A4</p><section className="salarySlip" aria-label="Salary slip print preview">
       <header className="salaryCompanyHeader">{["companyName", "address1", "address2"].filter(key => !removed.has(key)).map(key => key === "companyName" ? <h2 key={key}>{form[key] || "\u00a0"}</h2> : <p key={key}>{form[key] || "\u00a0"}</p>)}</header>
-      <div className="salaryPrintTitle"><h1>Salary Slip</h1><p>For the month of <b>{monthYear}</b></p>{workspace?.slip && editingId && <small>{workspace.slip.slipNumber}</small>}</div>
-      <div className="salaryPrintDetails">{[leftDetails, rightDetails].map((group, index) => <dl key={index}>{group.map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{form[key] || "—"}</dd></div>)}</dl>)}</div>
-      {attendanceFields.some(([key]) => !removed.has(key)) && <div className="salaryPrintAttendance">{attendanceFields.filter(([key]) => !removed.has(key)).map(([key, label]) => <span key={key}>{label}: <b>{form[key] || "0"}</b></span>)}</div>}
-      <table className="salaryPayTable"><colgroup><col style={{ width: "34%" }}/><col style={{ width: "16%" }}/><col style={{ width: "34%" }}/><col style={{ width: "16%" }}/></colgroup>
-        <thead><tr><th>Earnings</th><th className="salaryAmount">Amount (₹)</th><th>Deductions</th><th className="salaryAmount">Amount (₹)</th></tr></thead>
-        <tbody>{payRows.map((_, index) => <tr key={index}><td>{visibleEarnings[index]?.label || "\u00a0"}</td><td className="salaryAmount">{visibleEarnings[index] ? money(visibleEarnings[index].amount) : ""}</td><td>{visibleDeductions[index]?.label || "\u00a0"}</td><td className="salaryAmount">{visibleDeductions[index] ? money(visibleDeductions[index].amount) : ""}</td></tr>)}</tbody>
-        <tbody className="salaryPrintSummary"><tr><th>Gross salary</th><th className="salaryAmount">{money(totals.totalEarning)}</th><th>Total deductions</th><th className="salaryAmount">{money(totals.totalDeduction)}</th></tr><tr className="salaryNetPay"><th colSpan="3">Net payable for {monthYear}</th><th className="salaryAmount">₹{money(totals.netPay)}</th></tr><tr><td colSpan="4"><b>{amountInWords(totals.netPay)}</b></td></tr></tbody>
+      <div className="salaryPrintTitle"><h1>Salary Slip</h1><p>For the month of <b>{monthYear}</b></p></div>
+      <table className="salaryPayTable" aria-label={`Salary details for ${monthYear}`}><colgroup>{[18, 16, 16, 18, 16, 16].map((width, index) => <col key={index} style={{ width: `${width}%` }}/>)}</colgroup>
+        <tbody className="salaryPrintDetails">
+          {workspace?.slip && editingId && <tr><th scope="row">Slip number</th><td colSpan="5" className="salaryDetailValue">{workspace.slip.slipNumber}</td></tr>}
+          {detailRows.map((row, index) => <tr key={index}>{row.map((field, column) => field ? <Fragment key={field[0]}><th scope="row">{field[1]}</th><td colSpan="2" className="salaryDetailValue">{form[field[0]] || "—"}</td></Fragment> : <td key={`empty-${column}`} colSpan="3" aria-hidden="true" />)}</tr>)}
+        </tbody>
+        {visibleAttendance.length > 0 && <tbody className="salaryPrintAttendance"><tr>{visibleAttendance.map(([key, label]) => <Fragment key={key}><th scope="row">{label}</th><td colSpan="2">{form[key] || "0"}</td></Fragment>)}{visibleAttendance.length === 1 && <td colSpan="3" aria-hidden="true" />}</tr></tbody>}
+        <tbody className="salaryPayHeading"><tr><th scope="col" colSpan="2">Earnings</th><th scope="col" className="salaryAmount">Amount (₹)</th><th scope="col" colSpan="2">Deductions</th><th scope="col" className="salaryAmount">Amount (₹)</th></tr></tbody>
+        <tbody>{payRows.map((_, index) => <tr key={index}><td colSpan="2">{visibleEarnings[index]?.label || "\u00a0"}</td><td className="salaryAmount">{visibleEarnings[index] ? money(visibleEarnings[index].amount) : ""}</td><td colSpan="2">{visibleDeductions[index]?.label || "\u00a0"}</td><td className="salaryAmount">{visibleDeductions[index] ? money(visibleDeductions[index].amount) : ""}</td></tr>)}</tbody>
+        <tbody className="salaryPrintSummary"><tr><th scope="row" colSpan="2">Gross salary</th><td className="salaryAmount"><b>{money(totals.totalEarning)}</b></td><th scope="row" colSpan="2">Total deductions</th><td className="salaryAmount"><b>{money(totals.totalDeduction)}</b></td></tr><tr className="salaryNetPay"><th scope="row" colSpan="5">Net payable for {monthYear}</th><td className="salaryAmount"><b>₹{money(totals.netPay)}</b></td></tr><tr><th scope="row">Amount in words</th><td colSpan="5"><b>{amountInWords(totals.netPay)}</b></td></tr><tr><td colSpan="6" className="salaryPrintNote">This is a computer generated statement and does not require a signature.</td></tr></tbody>
       </table>
-      <p className="salaryPrintNote">This is a computer generated statement and does not require a signature.</p>
     </section></div>}
 
     {workspace && workspace.history.length > 0 && <section className="noPrint savedSalarySection"><div className="savedSalaryHeading"><div><span>EMPLOYEE HISTORY</span><h2>Saved slips for {selectedEmployee?.fullName}</h2><p>Select a month to reopen its saved details and deductions.</p></div></div><div className="savedSalaryGrid">{workspace.history.map(item => <button type="button" disabled={saving || !item.month || !item.year} className={`savedSalaryCard${item.id === editingId ? " editing" : ""}`} key={item.id} onClick={() => { if (Number(item.month) === month && String(item.year) === year) return; changeSelection(() => { setMonth(item.month); setYear(String(item.year)); }); }}><span>{item.slipNumber}</span><b>{item.month ? `${months[item.month - 1]} ${item.year}` : item.values?.monthYear || "Month missing"}</b><strong>₹{money(item.totals?.netPay)}</strong><small>{item.month ? "Open for editing" : "Legacy slip: month could not be identified"}</small></button>)}</div></section>}
