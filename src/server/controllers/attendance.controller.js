@@ -71,6 +71,7 @@ const handlers = {
   ,getAppFeedback: appFeedback.getAppFeedback
   ,deleteAllAppFeedback: appFeedback.deleteAllAppFeedback
   ,getSalarySlips: salarySlips.getSalarySlips
+  ,getSalarySlipWorkspace: salarySlips.getSalarySlipWorkspace
   ,saveSalarySlip: salarySlips.saveSalarySlip
 };
 
@@ -86,7 +87,7 @@ async function handleAttendanceAction(req, res) {
     getLeadSheetSettings: ["admin"], updateLeadSheetSettings: ["admin"], syncLeadSheet: ["admin"],
     getDashboardCredentials: ["admin"], updateDashboardCredential: ["admin"],
     getOfficeWifiSettings: ["admin"], updateOfficeWifiSettings: ["admin"], getAttendanceWifiExemptions: ["admin"], updateAttendanceWifiExemptions: ["admin"], getAppFeedback: ["admin"], deleteAllAppFeedback: ["admin"],
-    getSalarySlips: ["hr"], saveSalarySlip: ["hr"],
+    getSalarySlips: ["hr"], getSalarySlipWorkspace: ["hr"], saveSalarySlip: ["hr"],
     sendBroadcastAlert: ["admin", "hr", "marketing", "ceo"], getBroadcastAlerts: ["admin", "hr", "marketing", "ceo"], deleteBroadcastAlert: ["admin", "hr", "marketing", "ceo"], getAlertRecipients: ["admin", "hr", "marketing", "ceo"]
   };
   const allowedRoles = rolePolicies[action];

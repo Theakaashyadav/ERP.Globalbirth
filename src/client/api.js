@@ -91,6 +91,7 @@ export const AttendanceApi = {
   ,deleteBroadcastAlert: (alertId, senderRole) => request("deleteBroadcastAlert", { alertId, senderRole })
   ,getAppFeedback: () => request("getAppFeedback")
   ,deleteAllAppFeedback: () => request("deleteAllAppFeedback")
-  ,getSalarySlips: () => request("getSalarySlips")
-  ,saveSalarySlip: (slipId, values, removedFields) => request("saveSalarySlip", { slipId, values, removedFields })
+  ,getSalarySlips: employeeId => request("getSalarySlips", { employeeId })
+  ,getSalarySlipWorkspace: (employeeId, month, year) => request("getSalarySlipWorkspace", { employeeId, month, year })
+  ,saveSalarySlip: (slipId, values, removedFields, details = {}) => request("saveSalarySlip", { slipId, values, removedFields, ...details })
 };

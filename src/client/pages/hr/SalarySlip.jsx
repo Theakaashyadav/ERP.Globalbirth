@@ -1,109 +1,187 @@
-import { useEffect, useMemo, useState } from "react";
-import { Edit3, FileText, Plus, Printer, RotateCcw, Save, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { FileText, Plus, Printer, RotateCcw, Save, Search, X } from "lucide-react";
 import PageHeader from "../../components/PageHeader.jsx";
 import { AttendanceApi } from "../../api.js";
-import { canAccessRole } from "../../auth.js";
 import { useToast } from "../../components/Toast.jsx";
+import { amountInWords, attendanceFields, calculateTotals, deductions, detailFields, earnings, emptyForm, labels, money, months } from "./salary-slip-utils.mjs";
 import "../../salary-slip-management.css";
 
-const fields = [
-  ["companyName", "Company Name"], ["address1", "Address Line 1"], ["address2", "Address Line 2"], ["monthYear", "Month & Year"],
-  ["empCode", "Employee Code"], ["empName", "Employee Name"], ["fhName", "F/H Name"], ["designation", "Designation"],
-  ["department", "Department"], ["pfNo", "P.F. Number"], ["panNo", "PAN No."], ["bankNo", "Bank A/c No."],
-  ["esiNo", "ESI Number"], ["doj", "D.O.J."], ["uan", "UAN#"], ["paidDays", "Paid Days"], ["leaveDays", "Leave"]
-];
-const earnings = [["basic", "Basic Salary"], ["hra", "House Rent Allowance (HRA)"], ["perAllo", "Special Allowance"], ["convey", "Conveyance Allowance"], ["fuel", "FUEL"], ["uniform", "UNIFORM"], ["books", "BOOKS"], ["driver", "DRIVER S"], ["arr1", "ARR-1"], ["arr2", "ARR-2"], ["arr3", "ARR-3"], ["bonus", "BONUS"], ["dwage", "D.WAGE"], ["overtime", "OVERTIME"]];
-const deductions = [["epf", "Employee EPF Contribution (Included in CTC)"], ["esic", "E.S.I.C."], ["advance", "ADVANCE"], ["itax", "I.TAX"], ["lwfee", "LWFEE"], ["ptax", "P.TAX"], ["recot", "REC-OT"], ["loan", "LOAN"]];
-const allInputs = [...fields, ...earnings, ...deductions];
-const labels = Object.fromEntries(allInputs);
-const emptyForm = () => Object.fromEntries(allInputs.map(([key]) => [key, ""]));
-
-function numberToWords(number) {
-  const a = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
-  const b = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
-  const n = Math.round(Math.abs(number)); if (n === 0) return "Zero";
-  function words(value) { if (value < 20) return a[value]; if (value < 100) return b[Math.floor(value / 10)] + (value % 10 ? " " + a[value % 10] : ""); if (value < 1000) return a[Math.floor(value / 100)] + " Hundred" + (value % 100 ? " " + words(value % 100) : ""); if (value < 100000) return words(Math.floor(value / 1000)) + " Thousand" + (value % 1000 ? " " + words(value % 1000) : ""); if (value < 10000000) return words(Math.floor(value / 100000)) + " Lakh" + (value % 100000 ? " " + words(value % 100000) : ""); return words(Math.floor(value / 10000000)) + " Crore" + (value % 10000000 ? " " + words(value % 10000000) : ""); }
-  return words(n);
-}
-
 export default function SalarySlip() {
+  const now = new Date();
+  const [employees, setEmployees] = useState([]);
+  const [loadingEmployees, setLoadingEmployees] = useState(true);
+  const [employeeError, setEmployeeError] = useState("");
+  const [search, setSearch] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [year, setYear] = useState(String(now.getFullYear()));
+  const [workspace, setWorkspace] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [reload, setReload] = useState(0);
   const [form, setForm] = useState(emptyForm);
   const [removedFields, setRemovedFields] = useState([]);
-  const [savedSlips, setSavedSlips] = useState([]);
+  const [customDeductions, setCustomDeductions] = useState([]);
   const [editingId, setEditingId] = useState("");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [loadingSaved, setLoadingSaved] = useState(false);
+  const editorRef = useRef(null);
   const toast = useToast();
-  const canManage = canAccessRole("hr");
+  const selectedEmployee = employees.find(item => item.employeeId === employeeId);
+  const validYear = /^\d{4}$/.test(year) && Number(year) >= 1900;
+  const monthYear = `${months[month - 1]} ${year}`;
   const removed = useMemo(() => new Set(removedFields), [removedFields]);
+  const totals = useMemo(() => calculateTotals(form, removedFields, customDeductions), [form, removedFields, customDeductions]);
+  const filteredEmployees = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return employees.filter(item => [item.employeeId, item.fullName, item.phone, item.department].join(" ").toLowerCase().includes(needle));
+  }, [employees, search]);
 
-  async function loadSaved() {
-    if (!canManage) return;
-    setLoadingSaved(true);
-    try { const result = await AttendanceApi.getSalarySlips(); if (!result.success) throw new Error(result.message); setSavedSlips(result.data || []); }
-    catch (error) { toast.error(error.message || "Saved salary slips could not be loaded."); }
-    finally { setLoadingSaved(false); }
+  async function loadEmployees() {
+    setLoadingEmployees(true); setEmployeeError("");
+    try {
+      const result = await AttendanceApi.getEmployees();
+      if (!result.success) throw new Error(result.message);
+      setEmployees(result.data || []);
+    } catch (failure) { setEmployeeError(failure.message || "Employees could not be loaded."); }
+    finally { setLoadingEmployees(false); }
   }
-  useEffect(() => { loadSaved(); }, []);
+  useEffect(() => { loadEmployees(); }, []);
 
-  function update(key, value) { setForm(current => ({ ...current, [key]: value })); }
-  function removeField(key) { setRemovedFields(current => current.includes(key) ? current : [...current, key]); }
-  function restoreField(key) { setRemovedFields(current => current.filter(item => item !== key)); }
-  function startNew() { setForm(emptyForm()); setRemovedFields([]); setEditingId(""); window.scrollTo({ top:0, behavior:"smooth" }); }
-  function editSlip(item) { setForm({ ...emptyForm(), ...(item.values || {}) }); setRemovedFields(item.removedFields || []); setEditingId(item.id); window.scrollTo({ top:0, behavior:"smooth" }); toast.info(`Editing ${item.slipNumber}`); }
+  function fillEditor(slip) {
+    setForm({ ...emptyForm(), ...slip.values });
+    setRemovedFields((slip.removedFields || []).filter(key => key !== "monthYear" && labels[key]));
+    setCustomDeductions((slip.customDeductions || []).map(row => ({ ...row, key: crypto.randomUUID() })));
+    setEditingId(slip.id || ""); setDirty(false); setEditorOpen(true);
+  }
 
-  const totals = useMemo(() => {
-    const num = key => removed.has(key) ? 0 : Number(form[key]) || 0;
-    const totalEarning = earnings.reduce((sum, [key]) => sum + num(key), 0), totalDeduction = deductions.reduce((sum, [key]) => sum + num(key), 0);
-    return { totalEarning, totalDeduction, netPay:totalEarning-totalDeduction };
-  }, [form, removed]);
+  useEffect(() => {
+    let cancelled = false;
+    setWorkspace(null); setEditorOpen(false); setEditingId(""); setDirty(false); setError("");
+    if (!employeeId || !validYear) { setLoading(false); return; }
+    setLoading(true);
+    AttendanceApi.getSalarySlipWorkspace(employeeId, month, Number(year)).then(result => {
+      if (cancelled) return;
+      if (!result.success) throw new Error(result.message);
+      setWorkspace(result.data);
+      if (result.data.slip) fillEditor(result.data.slip);
+    }).catch(failure => { if (!cancelled) setError(failure.message || "Salary details could not be loaded."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [employeeId, month, year, reload]);
 
-  async function generateAndSave({ silent = false } = {}) {
-    if (!canManage) { toast.warning("Sign in to the HR dashboard to save salary slips."); return false; }
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = event => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  function changeSelection(action) {
+    if (saving || (dirty && !window.confirm("Discard unsaved salary-slip changes?"))) return;
+    setDirty(false); setEditorOpen(false); setWorkspace(null); action();
+  }
+  function update(key, value) { setDirty(true); setForm(current => ({ ...current, [key]: value })); }
+  function removeField(key) { setDirty(true); setRemovedFields(current => [...new Set([...current, key])]); }
+  function restoreField(key) { setDirty(true); setRemovedFields(current => current.filter(item => item !== key)); }
+  function updateDeduction(key, field, value) {
+    setDirty(true); setCustomDeductions(current => current.map(row => row.key === key ? { ...row, [field]: value } : row));
+  }
+
+  async function saveSlip({ print = false } = {}) {
+    if (!editorRef.current?.reportValidity() || saving) return;
     setSaving(true);
     try {
-      const result = await AttendanceApi.saveSalarySlip(editingId, form, removedFields);
+      const result = await AttendanceApi.saveSalarySlip(editingId, form, removedFields, {
+        employeeId, month, year: Number(year), customDeductions: customDeductions.map(({ label, amount }) => ({ label, amount }))
+      });
       if (!result.success) throw new Error(result.message);
-      setEditingId(result.data.id); if (!silent) toast.success(result.message); await loadSaved(); return true;
-    } catch (error) { toast.error(error.message || "Salary slip could not be saved."); return false; }
+      fillEditor(result.data);
+      setWorkspace(current => ({ ...current, slip: result.data, hasSavedDetails: true,
+        history: [result.data, ...(current?.history || []).filter(item => item.id !== result.data.id)] }));
+      toast.success(result.message);
+      if (print) {
+        await document.fonts.ready;
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        window.print();
+      }
+    } catch (failure) { toast.error(failure.message || "Salary slip could not be saved."); }
     finally { setSaving(false); }
   }
-  async function printSlip() { if (!canManage || await generateAndSave({ silent:true })) window.print(); }
 
-  const visibleEarnings = earnings.filter(([key]) => !removed.has(key));
-  const visibleDeductions = deductions.filter(([key]) => !removed.has(key));
-  const payRows = Array.from({ length:Math.max(visibleEarnings.length, visibleDeductions.length) });
-  const leftDetails = [["empCode", "Employee Code"], ["empName", "Employee Name"], ["fhName", "F/H Name"], ["designation", "Designation"], ["department", "Department"]].filter(([key]) => !removed.has(key));
-  const rightDetails = [["pfNo", "P.F. Number"], ["panNo", "PAN No."], ["bankNo", "Bank A/c No."], ["esiNo", "ESI Number"], ["doj", "D.O.J."], ["uan", "UAN#"]].filter(([key]) => !removed.has(key));
+  function renderFields(fields, numeric = false) {
+    return <div className="formGrid salaryFieldGrid">{fields.filter(([key]) => !removed.has(key)).map(([key, label]) => <div className="field salaryRemovableField" key={key}>
+      <label htmlFor={`salary-${key}`}>{label}</label>
+      <button type="button" className="salaryRemoveField" aria-label={`Remove ${label}`} title={`Remove ${label}`} onClick={() => removeField(key)}><X size={14}/></button>
+      <input id={`salary-${key}`} type={numeric ? "number" : "text"} min={numeric ? "0" : undefined} max={numeric ? "1000000000" : undefined} step={numeric ? "0.01" : undefined} maxLength={numeric ? undefined : 500} value={form[key]} onChange={event => update(key, event.target.value)} />
+    </div>)}</div>;
+  }
 
-  return <main className="screen"><div className="wide">
+  const visibleEarnings = earnings.filter(([key]) => !removed.has(key)).map(([key, label]) => ({ label, amount: form[key] }));
+  const visibleDeductions = [...deductions.filter(([key]) => !removed.has(key)).map(([key, label]) => ({ label, amount: form[key] })), ...customDeductions];
+  const payRows = Array.from({ length: Math.max(visibleEarnings.length, visibleDeductions.length, 1) });
+  const leftDetails = detailFields.filter(([key]) => ["empCode", "empName", "fhName", "designation", "department", "employeeAddress"].includes(key) && !removed.has(key));
+  const rightDetails = detailFields.filter(([key]) => ["pfNo", "panNo", "bankNo", "esiNo", "doj", "uan"].includes(key) && !removed.has(key));
+
+  return <main className="screen salarySlipPage"><div className="wide">
     <div className="noPrint">
-      <PageHeader icon={FileText} title="Salary Slip Generator" subtitle="Remove unnecessary fields, save generated slips and reopen them for editing." />
-      <section className="panel salaryFormPanel">
-        <div className="salaryEditorHeading"><div><span>{editingId ? "EDITING SAVED SLIP" : "NEW SALARY SLIP"}</span><h2>{editingId ? (savedSlips.find(item => item.id === editingId)?.slipNumber || "Saved salary slip") : "Enter salary details"}</h2></div>{editingId && <button className="btn" onClick={startNew}><Plus size={17}/> New Slip</button>}</div>
-        <div className="formGrid salaryFieldGrid">{allInputs.filter(([key]) => !removed.has(key)).map(([key, label]) => <div className="field salaryRemovableField" key={key}><label>{label}</label><button type="button" className="salaryRemoveField" title={`Remove ${label}`} onClick={() => removeField(key)}><X size={14}/></button><input type={[...earnings,...deductions].some(([item]) => item === key) ? "number" : "text"} value={form[key]} onChange={event => update(key, event.target.value)} /></div>)}</div>
-        {removedFields.length > 0 && <div className="removedSalaryFields"><div><RotateCcw size={17}/><span>Removed fields</span><small>Click a field to restore it.</small></div><section>{removedFields.map(key => <button type="button" key={key} onClick={() => restoreField(key)}><Plus size={13}/>{labels[key]}</button>)}</section></div>}
-        <div className="salaryFormActions"><button className="btn green" disabled={saving} onClick={generateAndSave}><Save size={18}/>{saving ? "Saving..." : editingId ? "Save Changes" : "Generate & Save Slip"}</button><button className="btn" disabled={saving} onClick={printSlip}><Printer size={18}/> Print Salary Slip</button></div>
+      <PageHeader icon={FileText} title="Salary Slips" subtitle="Choose an employee and month. Save details once, then reuse and edit them for future slips." />
+      <section className="panel salarySelectionPanel">
+        <div className="salarySectionTitle"><span>1</span><div><h2>Select employee</h2><p>Search the employee list by name, code, phone or department.</p></div></div>
+        <div className="field salaryEmployeeSearch"><label htmlFor="salary-employee-search"><Search size={16}/> Search employees</label><input id="salary-employee-search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Name, employee code, phone or department" /></div>
+        {loadingEmployees ? <p role="status">Loading employees...</p> : employeeError ? <div role="alert" className="salaryLoadError">{employeeError}<button className="btn" onClick={loadEmployees}>Retry</button></div> : <div className="salaryEmployeeList" aria-label="Employee list">{filteredEmployees.length ? filteredEmployees.map(employee => <button type="button" key={employee.employeeId} disabled={saving} className={`salaryEmployeeOption${employeeId === employee.employeeId ? " selected" : ""}`} aria-pressed={employeeId === employee.employeeId} onClick={() => employeeId !== employee.employeeId && changeSelection(() => setEmployeeId(employee.employeeId))}>
+          <b>{employee.fullName}</b><small>{employee.employeeId} · {employee.department || "No department"}</small>
+        </button>) : <p>No employees match your search.</p>}</div>}
       </section>
+
+      {selectedEmployee && <section className="panel salarySelectionPanel">
+        <div className="salarySectionTitle"><span>2</span><div><h2>{selectedEmployee.fullName}</h2><p>{selectedEmployee.employeeId} · Choose the salary month and year.</p></div></div>
+        <div className="salaryPeriodFields">
+          <div className="field"><label htmlFor="salary-month">Month</label><select id="salary-month" disabled={saving} value={month} onChange={event => changeSelection(() => setMonth(Number(event.target.value)))}>{months.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}</select></div>
+          <div className="field"><label htmlFor="salary-year">Year</label><input id="salary-year" type="number" min="1900" max="9999" step="1" disabled={saving} value={year} onChange={event => changeSelection(() => setYear(event.target.value))} /></div>
+          <button className="btn" type="button" disabled={saving || loading || !validYear} onClick={() => changeSelection(() => setReload(current => current + 1))}><RotateCcw size={16}/> Reload</button>
+        </div>
+        {!validYear && <p role="alert">Enter a four-digit year from 1900 to 9999.</p>}
+        {loading && <p role="status">Checking saved slip for {monthYear}...</p>}
+        {error && <p role="alert" className="salaryLoadError">{error}</p>}
+        {workspace && !editorOpen && <div className="salaryGeneratePrompt"><div><b>No salary slip for {monthYear}</b><p>{workspace.hasSavedDetails ? "Your saved employee details and earnings are ready. Enter this month's deductions after generating." : "Start with this employee's details, then edit and save them for future months."}</p></div><button className="btn green" type="button" onClick={() => fillEditor(workspace.defaults)}><Plus size={18}/> Generate salary slip</button></div>}
+      </section>}
+
+      {editorOpen && <form ref={editorRef} className="panel salaryFormPanel" onSubmit={event => { event.preventDefault(); saveSlip(); }}>
+        <fieldset disabled={saving}>
+          <div className="salaryEditorHeading"><div><span>{editingId ? "EDITING SAVED SLIP" : "NEW SLIP · NOT YET SAVED"}</span><h2>{monthYear}</h2><p>{editingId ? workspace?.slip?.slipNumber : selectedEmployee?.fullName}{dirty ? " · Unsaved changes" : ""}</p></div></div>
+          <div className="salaryEditorSection"><h3>Employee & company details</h3><p>These details and earnings are reused for future months when you save. All fields remain editable.</p>{renderFields(detailFields)}</div>
+          <div className="salaryEditorSection"><h3>Attendance for {monthYear}</h3>{renderFields(attendanceFields, true)}</div>
+          <div className="salaryEditorSection"><h3>Earnings</h3>{renderFields(earnings, true)}</div>
+          <div className="salaryEditorSection"><h3>Deductions for {monthYear}</h3><p>Deductions are saved only for this month and subtracted from the net salary.</p>{renderFields(deductions, true)}
+            <div className="salaryCustomDeductions">{customDeductions.map((row, index) => <div className="salaryDeductionRow" key={row.key}>
+              <div className="field"><label htmlFor={`deduction-label-${row.key}`}>Deduction {index + 1} label</label><input id={`deduction-label-${row.key}`} required maxLength={160} value={row.label} placeholder="e.g. Late arrival or advance recovery" onChange={event => updateDeduction(row.key, "label", event.target.value)} /></div>
+              <div className="field"><label htmlFor={`deduction-amount-${row.key}`}>Amount (₹)</label><input id={`deduction-amount-${row.key}`} required type="number" min="0" max="1000000000" step="0.01" value={row.amount} onChange={event => updateDeduction(row.key, "amount", event.target.value)} /></div>
+              <button type="button" className="btn red" aria-label={`Remove deduction ${index + 1}`} onClick={() => { setDirty(true); setCustomDeductions(current => current.filter(item => item.key !== row.key)); }}><X size={16}/></button>
+            </div>)}</div>
+            <button type="button" className="btn" disabled={customDeductions.length >= 50} onClick={() => { setDirty(true); setCustomDeductions(current => [...current, { key: crypto.randomUUID(), label: "", amount: "" }]); }}><Plus size={16}/> Add deduction</button>
+          </div>
+          {removedFields.length > 0 && <div className="removedSalaryFields"><div><RotateCcw size={17}/><span>Removed fields</span><small>Select a field to restore it.</small></div><section>{removedFields.map(key => <button type="button" key={key} onClick={() => restoreField(key)}><Plus size={13}/>{labels[key]}</button>)}</section></div>}
+          <div className="salaryTotals" aria-live="polite"><div><small>Gross salary</small><b>₹{money(totals.totalEarning)}</b></div><div><small>Total deductions</small><b>₹{money(totals.totalDeduction)}</b></div><div><small>Net salary</small><b data-testid="net-salary">₹{money(totals.netPay)}</b></div></div>
+          <div className="salaryFormActions"><button className="btn green" type="submit"><Save size={18}/>{saving ? "Saving..." : editingId ? "Save changes & employee details" : "Save slip & employee details"}</button><button className="btn" type="button" onClick={() => saveSlip({ print: true })}><Printer size={18}/> Save & print salary slip</button></div>
+        </fieldset>
+      </form>}
     </div>
 
-    <section className="salarySlip">
-      <div style={{ textAlign:"right", marginBottom:26, lineHeight:1.4 }}>
-        {!removed.has("companyName") && <><b>{form.companyName || "\u00a0"}</b><br/></>}
-        {!removed.has("address1") && <><span>{form.address1 || "\u00a0"}</span><br/></>}
-        {!removed.has("address2") && <span>{form.address2 || "\u00a0"}</span>}
-      </div>
-      {!removed.has("monthYear") && <p style={{textAlign:"center"}}>Salary Slip for the month of <b>{form.monthYear || "__________"}</b></p>}
-      <table><tbody>
-        {(leftDetails.length > 0 || rightDetails.length > 0) && <tr><td colSpan="3">{leftDetails.map(([key,label]) => <span className="salaryDetailLine" key={key}>{label}: {key === "empName" ? <b>{form[key]}</b> : form[key]}</span>)}</td><td colSpan="2">{rightDetails.map(([key,label]) => <span className="salaryDetailLine" key={key}>{label}: {form[key]}</span>)}</td></tr>}
-        {(!removed.has("paidDays") || !removed.has("leaveDays")) && <tr>{!removed.has("paidDays") && <><td>Paid Days</td><td colSpan={removed.has("leaveDays") ? 4 : 1}>{form.paidDays}</td></>}{!removed.has("leaveDays") && <><td>Leave</td><td colSpan={removed.has("paidDays") ? 4 : 2}>{form.leaveDays}</td></>}</tr>}
-        {payRows.length > 0 && <tr><th></th><th>Rate</th><th>Earnings</th><th>Deductions</th><th></th></tr>}
-        {payRows.map((_, index) => { const earn=visibleEarnings[index] || ["",""]; const ded=visibleDeductions[index] || ["",""]; return <tr key={index}><td>{earn[1]}</td><td style={{textAlign:"right"}}>{form[earn[0]]}</td><td style={{textAlign:"right"}}>{form[earn[0]]}</td><td>{ded[1]}</td><td style={{textAlign:"right"}}>{form[ded[0]]}</td></tr>; })}
-        {payRows.length > 0 && <><tr><td>Gross Salary</td><td style={{textAlign:"right"}}><b>{totals.totalEarning.toFixed(2)}</b></td><td style={{textAlign:"right"}}><b>{totals.totalEarning.toFixed(0)}</b></td><td>Total Deductions</td><td style={{textAlign:"right"}}><b>{totals.totalDeduction.toFixed(2)}</b></td></tr><tr><td colSpan="3"><b>Net Payable{!removed.has("monthYear") ? ` for the Month ${form.monthYear || "__________"}` : ""}</b></td><td colSpan="2" style={{textAlign:"center"}}><b>{totals.netPay.toFixed(2)}</b></td></tr><tr><td colSpan="5"><b>(Rupees {numberToWords(totals.netPay)} Only)</b></td></tr></>}
-        <tr><td colSpan="5"><b><i>Note : This is computer generated statement and does not require signature</i></b></td></tr>
-      </tbody></table>
-    </section>
+    {editorOpen && <div className="salaryPrintPreview"><p className="noPrint salaryPreviewLabel">PRINT PREVIEW · A4</p><section className="salarySlip" aria-label="Salary slip print preview">
+      <header className="salaryCompanyHeader">{["companyName", "address1", "address2"].filter(key => !removed.has(key)).map(key => key === "companyName" ? <h2 key={key}>{form[key] || "\u00a0"}</h2> : <p key={key}>{form[key] || "\u00a0"}</p>)}</header>
+      <div className="salaryPrintTitle"><h1>Salary Slip</h1><p>For the month of <b>{monthYear}</b></p>{workspace?.slip && editingId && <small>{workspace.slip.slipNumber}</small>}</div>
+      <div className="salaryPrintDetails">{[leftDetails, rightDetails].map((group, index) => <dl key={index}>{group.map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{form[key] || "—"}</dd></div>)}</dl>)}</div>
+      {attendanceFields.some(([key]) => !removed.has(key)) && <div className="salaryPrintAttendance">{attendanceFields.filter(([key]) => !removed.has(key)).map(([key, label]) => <span key={key}>{label}: <b>{form[key] || "0"}</b></span>)}</div>}
+      <table className="salaryPayTable"><colgroup><col style={{ width: "34%" }}/><col style={{ width: "16%" }}/><col style={{ width: "34%" }}/><col style={{ width: "16%" }}/></colgroup>
+        <thead><tr><th>Earnings</th><th className="salaryAmount">Amount (₹)</th><th>Deductions</th><th className="salaryAmount">Amount (₹)</th></tr></thead>
+        <tbody>{payRows.map((_, index) => <tr key={index}><td>{visibleEarnings[index]?.label || "\u00a0"}</td><td className="salaryAmount">{visibleEarnings[index] ? money(visibleEarnings[index].amount) : ""}</td><td>{visibleDeductions[index]?.label || "\u00a0"}</td><td className="salaryAmount">{visibleDeductions[index] ? money(visibleDeductions[index].amount) : ""}</td></tr>)}</tbody>
+        <tbody className="salaryPrintSummary"><tr><th>Gross salary</th><th className="salaryAmount">{money(totals.totalEarning)}</th><th>Total deductions</th><th className="salaryAmount">{money(totals.totalDeduction)}</th></tr><tr className="salaryNetPay"><th colSpan="3">Net payable for {monthYear}</th><th className="salaryAmount">₹{money(totals.netPay)}</th></tr><tr><td colSpan="4"><b>{amountInWords(totals.netPay)}</b></td></tr></tbody>
+      </table>
+      <p className="salaryPrintNote">This is a computer generated statement and does not require a signature.</p>
+    </section></div>}
 
-    {canManage && <section className="noPrint savedSalarySection"><div className="savedSalaryHeading"><div><span>SAVED IN DATABASE</span><h2>Generated salary slips</h2><p>Open any saved slip to refill its values and preserve its removed fields.</p></div><button className="btn" onClick={loadSaved} disabled={loadingSaved}><RotateCcw size={16}/>{loadingSaved ? "Loading..." : "Refresh"}</button></div>{loadingSaved && !savedSlips.length ? <div className="salarySavedEmpty">Loading saved salary slips...</div> : !savedSlips.length ? <div className="salarySavedEmpty">No salary slips have been saved yet.</div> : <div className="savedSalaryGrid">{savedSlips.map(item => <article className={editingId === item.id ? "savedSalaryCard editing" : "savedSalaryCard"} key={item.id}><header><div><span>{item.slipNumber}</span><h3>{item.values?.empName || "Unnamed employee"}</h3><small>{item.values?.empCode || "No employee code"} · {item.values?.monthYear || "No month"}</small></div><b>₹{Number(item.totals?.netPay||0).toFixed(2)}</b></header><div className="savedSalaryMeta"><span>{item.values?.department || "No department"}</span><span>{item.removedFields?.length || 0} fields removed</span><span>Updated {new Date(item.updatedAt).toLocaleString()}</span></div><footer><small>Generated by {item.generatedBy || "HR"}</small><button className="btn" onClick={() => editSlip(item)}><Edit3 size={16}/> Edit Slip</button></footer></article>)}</div>}</section>}
+    {workspace && workspace.history.length > 0 && <section className="noPrint savedSalarySection"><div className="savedSalaryHeading"><div><span>EMPLOYEE HISTORY</span><h2>Saved slips for {selectedEmployee?.fullName}</h2><p>Select a month to reopen its saved details and deductions.</p></div></div><div className="savedSalaryGrid">{workspace.history.map(item => <button type="button" disabled={saving || !item.month || !item.year} className={`savedSalaryCard${item.id === editingId ? " editing" : ""}`} key={item.id} onClick={() => { if (Number(item.month) === month && String(item.year) === year) return; changeSelection(() => { setMonth(item.month); setYear(String(item.year)); }); }}><span>{item.slipNumber}</span><b>{item.month ? `${months[item.month - 1]} ${item.year}` : item.values?.monthYear || "Month missing"}</b><strong>₹{money(item.totals?.netPay)}</strong><small>{item.month ? "Open for editing" : "Legacy slip: month could not be identified"}</small></button>)}</div></section>}
   </div></main>;
 }
